@@ -7,46 +7,9 @@ const sendEmail = require('../utils/emailService');
 const crypto = require('crypto');
 const e = require('express');
 
-// router.post('/login', (req, res) => {
-//   const { email, password } = req.body;
-//   db.query('SELECT * FROM users WHERE email = ?', [email], (err, results) => {
-//     if (err) {
-//       console.error('Login error:', err);
-//       return res.status(500).json({ status: false, message: 'Server error' });
-//     }
-//     if (!results || results.length === 0) {
-//       return res.status(200).json({ status: false, message: 'Invalid email' });
-//     }
-//     const user = results[0];
-//     if (!password || !user.password_hash) {
-//       return res.status(200).json({ status: false, message: 'Password missing' });
-//     }
-//     bcrypt.compare(password, user.password_hash)
-//       .then(match => {
-//         if (!match) {
-//           return res.status(200).json({ status: false, message: 'Invalid password' });
-//         }
-//         const token = jwt.sign(
-//           user,
-//           process.env.JWT_SECRET,
-//           { expiresIn: '4300h' }
-//         );
-//         return res.status(200).json({
-//           status: true,
-//           message: 'Login successful',
-//           token,
-//         });
-//       })
-//       .catch(err => {
-//         console.error('bcrypt compare error:', err);
-//         return res.status(500).json({ status: false, message: 'Server error' });
-//       });
-//   });
-// });
 
 router.post('/login', async (req, res) => {
   const { email } = req.body;
-
   // Check if user exists
   db.query('SELECT * FROM users WHERE email = ?', [email], async (err, results) => {
     if (err) {
@@ -59,7 +22,6 @@ router.post('/login', async (req, res) => {
     }
 
     const user = results[0];
-
     // ✅ Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000); // or use crypto.randomInt
     const subject = "Your Login OTP";
@@ -135,45 +97,6 @@ router.post('/otpCheck', (req, res) => {
 
 // register
 
-// router.post("/register", async (req, res) => {
-//   const { name, email, password, contactNumber } = req.body;
-
-//   if (!name || !email || !password || !contactNumber) {
-//     return res.status(400).json({ status: false, message: "All fields are required" });
-//   }
-
-//   try {
-//     // Check if user already exists
-//     const [user] = await db
-//       .promise()
-//       .query("SELECT user_id  FROM users WHERE email = ? OR phone_number = ?", [email, contactNumber]);
-
-//     if (user.length > 0) {
-//       return res.status(409).json({
-//         status: false,
-//         message: "Email or Phone number already registered",
-//       });
-//     }
-
-//     // Hash password
-//     const hashedPassword = await bcrypt.hash(password, 10);
-
-//     // Insert user
-//     const insertQuery = `
-//       INSERT INTO users (name, email,password, password_hash,phone_number, created_at)
-//       VALUES (?, ?, ?, ?,?, NOW())
-//     `;
-
-//     await db.promise().query(insertQuery, [name, email, password, hashedPassword, contactNumber]);
-
-//     res.json({ status: true, message: "User registered successfully" });
-//   } catch (error) {
-//     console.error("Register Error:", error);
-//     res.status(500).json({ status: false, message: "Internal server error" });
-//   }
-// });
-
-
 
 router.post("/register", async (req, res) => {
   const { email, contactNumber, type } = req.body;
@@ -185,7 +108,6 @@ router.post("/register", async (req, res) => {
   } else {
     return res.status(200).json({ status: false, message: "Invalid type" });
   }
-
 
   if (!email && !contactNumber) {
     return res.status(400).json({ status: false, message: "All fields are required" });
@@ -297,6 +219,5 @@ router.post("/enterDetails", async (req, res) => {
   }
 });
 
-module.exports = router;
 
-// // 59d2ae2ff151afeac055f50fd05044a0
+module.exports = router;

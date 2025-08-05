@@ -6,8 +6,11 @@ const profile = require('./profile');
 const loginRoutes = require('./login');
 const upload = require('./upload-profile');
 const DataGet = require('./dataget');
-const notificationRoutes = require('./notificationRoutes');
+const notification = require('../notification/notification');
 const propertyRoutes = require('./property');
+// // on-bording 
+const propartybording = require('./bording/propartybording');
+const host = require('./bording/host');
 
 router.use('/home', homeRoutes);
 router.use('/profile', authenticateToken, profile);
@@ -15,5 +18,13 @@ router.use('/upload', authenticateToken, upload);
 router.use('/data', authenticateToken, DataGet);
 router.use('/property', authenticateToken, propertyRoutes);
 
+// // notification.js
+router.use('/property', authenticateToken, propertyRoutes);
+router.use('/notification', authenticateToken, notification);
 router.use("/user", loginRoutes);
+
+
+router.use('/onBording', authenticateToken, propartybording);
+router.use('/host', authenticateToken, host);
+
 module.exports = router;
