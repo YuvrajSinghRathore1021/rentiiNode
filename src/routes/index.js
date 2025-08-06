@@ -12,6 +12,9 @@ const propertyRoutes = require('./property');
 const propartybording = require('./bording/propartybording');
 const host = require('./bording/host');
 
+// // property user
+const propartyuser = require('./bording/propartyuser');
+
 router.use('/home', homeRoutes);
 router.use('/profile', authenticateToken, profile);
 router.use('/upload', authenticateToken, upload);
@@ -26,5 +29,7 @@ router.use("/user", loginRoutes);
 
 router.use('/onBording', authenticateToken, propartybording);
 router.use('/host', authenticateToken, host);
+
+router.use('/userProparty', authenticateToken, propartyuser);
 
 module.exports = router;

@@ -11,22 +11,38 @@ const e = require('express');
 router.post('/login', async (req, res) => {
   const { email } = req.body;
   // Check if user exists
+  let user = {};
+  let userType = "login";
   db.query('SELECT * FROM users WHERE email = ?', [email], async (err, results) => {
     if (err) {
       console.error('Login error:', err);
       return res.status(500).json({ status: false, message: 'Server error' });
     }
-
     if (!results || results.length === 0) {
-      return res.status(200).json({ status: false, message: 'Invalid email' });
+      // return res.status(200).json({ status: false, message: 'Invalid email' });
+      // If user does not exist, create a new user
+      const insertQuery = 'INSERT INTO users (email, created_at) VALUES (?, NOW())';
+      db.query(insertQuery, [email], (insertErr) => {
+        if (insertErr) {
+          console.error('Insert error:', insertErr);
+          return res.status(500).json({ status: false, message: 'Server error' });
+        }
+      });
+      user = { email, is_verified_email: 0 }; // Default values for new user
+      userType = "register"; // Set userType to register for OTP
     }
-
-    const user = results[0];
+    else {
+      user = results[0];
+    }
     // ✅ Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000); // or use crypto.randomInt
-    const subject = "Your Login OTP";
-    const message = `Hi ${user.name || ''},<br><br>Your OTP for login is <b>${otp}</b>. It is valid for 10 minutes.`;
-
+    const subject = `Your ${userType} OTP`;
+    let message = ''
+    if (userType == "login") {
+      message = `Hi ${user.name || ''},<br><br>Your OTP for login is <b>${otp}</b>. It is valid for 10 minutes.`;
+    } else {
+      message = `Hi,<br><br>Your OTP for registration is <b>${otp}</b>. It is valid for 10 minutes.`;
+    }
     // ✅ Send email
     const result = await sendEmail({ to: email, subject, html: message });
     if (!result.success) {
@@ -44,11 +60,12 @@ router.post('/login', async (req, res) => {
           return res.status(500).json({ status: false, message: 'Server error' });
         }
 
-        res.status(200).json({ status: true, message: 'OTP sent successfully', otp }); // send OTP only in dev
+        res.status(200).json({ status: true, message: 'OTP sent successfully', otp, type: userType }); // send OTP only in dev
       }
     );
   });
 });
+
 
 // check email and password
 router.post('/otpCheck', (req, res) => {
@@ -217,6 +234,48 @@ router.post("/enterDetails", async (req, res) => {
     console.error("Update Error:", error);
     res.status(500).json({ status: false, message: "Internal server error" });
   }
+});
+
+// resend otp 
+
+router.post('/resendOTP', async (req, res) => {
+  const { email } = req.body;
+
+  db.query('SELECT * FROM users WHERE email = ?', [email], async (err, results) => {
+    if (err) {
+      console.error('Login error:', err);
+      return res.status(500).json({ status: false, message: 'Server error' });
+    }
+    if (!results || results.length === 0) {
+      return res.status(200).json({ status: false, message: 'Invalid email' });
+    }
+
+    // ✅ Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000); // or use crypto.randomInt
+    const subject = `Your OTP`;
+    let message = `Hi,<br><br>Your OTP for resend OTP is <b>${otp}</b>. It is valid for 10 minutes.`;
+
+    // ✅ Send email
+    const result = await sendEmail({ to: email, subject, html: message });
+    if (!result.success) {
+      return res.status(500).json({ status: false, message: 'Failed to send OTP' });
+    }
+
+    // ✅ (Optional) Store OTP in DB with expiry (if needed)
+    const expiry = new Date(Date.now() + 10 * 60000); // 10 minutes from now
+    db.query(
+      'UPDATE users SET otp = ?, otp_expiry = ? WHERE email = ?',
+      [otp, expiry, email],
+      (err) => {
+        if (err) {
+          console.error('OTP save error:', err);
+          return res.status(500).json({ status: false, message: 'Server error' });
+        }
+
+        res.status(200).json({ status: true, message: 'OTP sent successfully', otp }); // send OTP only in dev
+      }
+    );
+  });
 });
 
 
