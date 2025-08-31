@@ -90,7 +90,18 @@ router.post('/otpCheck', (req, res) => {
     }
     // Generate JWT token
     const token = jwt.sign(
-      { user_id: user.user_id, email: user.email },
+      {
+        user_id: user.user_id,
+        name: user.name,
+        email: user.email,
+        dob: user.dob,
+        phone_number: user.phone_number,
+        about: user.about,
+        host_id: user.host_id,
+        is_host: user.is_host,
+        is_verified_email: user.is_verified_email,
+        status: user.status
+      },
       process.env.JWT_SECRET,
       { expiresIn: '4300h' } // 500 days
     );
@@ -131,9 +142,7 @@ router.post("/register", async (req, res) => {
   }
   try {
     // Check if user already exists
-    const [user] = await db
-      .promise()
-      .query("SELECT user_id  FROM users WHERE email = ? OR phone_number = ?", [email, contactNumber]);
+    const [user] = await db.promise().query("SELECT user_id  FROM users WHERE email = ? OR phone_number = ?", [email, contactNumber]);
 
     if (user.length > 0 && user[0].is_verified_email == 1) {
       return res.status(409).json({
@@ -182,7 +191,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// register otp check
+// register otpcheck
 router.post("/registerOtpCheck", (req, res) => {
   const { email, otp } = req.body;
   db.query('SELECT * FROM users WHERE email = ?', [email], (err, results) => {

@@ -9,8 +9,11 @@ const sendEmail = async ({ to, subject, html }) => {
             port: 587,
             secure: false,
             auth: {
-                user: process.env.EMAIL_USER || 'yuvrajsinghrathore1021@gmail.com',
-                pass: process.env.EMAIL_PASS || 'ledawabbxuseiuxa',
+                user: 'officerahul2939@gmail.com',
+                pass: 'chhntewvofkdqqwf',
+                // pass: 'ledawabbxuseiuxa',
+                // user: process.env.EMAIL_USER || 'yuvrajsinghrathore1021@gmail.com',
+                // pass: process.env.EMAIL_PASS || 'ledawabbxuseiuxa',
             },
         });
 

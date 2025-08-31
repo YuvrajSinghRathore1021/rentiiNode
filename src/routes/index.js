@@ -22,7 +22,7 @@ router.use('/data', authenticateToken, DataGet);
 router.use('/property', authenticateToken, propertyRoutes);
 
 // // notification.js
-router.use('/property', authenticateToken, propertyRoutes);
+// router.use('/property', authenticateToken, propertyRoutes);
 router.use('/notification', authenticateToken, notification);
 router.use("/user", loginRoutes);
 
