@@ -25,7 +25,6 @@ router.get('/properties', async (req, res) => {
             WHERE p.host_id = ?`;
 
         const queryParams = [hostId];
-
         if (status) {
             query += " AND p.is_active = ?";
             queryParams.push(status);
@@ -90,6 +89,7 @@ router.get('/properties', async (req, res) => {
     }
 });
 
+
 router.get('/host-properties', async (req, res) => {
     const hostId = req.user.host_id;
     console.log(hostId)
@@ -126,132 +126,325 @@ router.get('/host-properties', async (req, res) => {
     }
 });
 
-// property on boarding/property uploads
-//add property
-router.post('/add-property', async (req, res) => {
+////// property on boarding/property uploads
+// /////add property proper work but image not uploded 
+// router.post('/add-property', async (req, res) => {
+//     const connection = await dbn.getConnection();
+//     try {
+//         await connection.beginTransaction();
+
+//         const userId = req.user.user_id;
+//         const hostId = req.user.host_id || 1;
+//         const { data } = req.body;
+//         console.log(data);
+//         // return;
+
+//         // 1. Insert into properties
+//         const [propertyResult] = await connection.query(`
+//             INSERT INTO properties 
+//             (host_id, title, description, property_type, describe_apartment, other_people, room_type, 
+//              max_guests, bedrooms, bedroom_look, beds, bathrooms, attached_bathrooms, dedicated_bathrooms, shard_bathrooms,
+//              latitude, longitude, weekday_price, weekend_price, created_at)
+//             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())
+//         `, [
+//             hostId,
+//             data.apartmenttitle.title,
+//             data.apartmentdescription.description,
+//             data.liketohost.type,
+//             data.describeyourplace.type,
+//             data.elsemightbethere.type,
+//             data.typeofplaceguesthave.type,
+//             data.startwiththebasics.peoplecanstay.guests,
+//             data.startwiththebasics.peoplecanstay.bedrooms,
+//             data.startwiththebasics.havealock.type,
+//             data.startwiththebasics.peoplecanstay.beds,
+//             parseInt(data.bathroomsareavailabletoguests.privateandatteched) +
+//             parseInt(data.bathroomsareavailabletoguests.dedicated) +
+//             parseInt(data.bathroomsareavailabletoguests.shared),
+//             data.bathroomsareavailabletoguests.privateandatteched,
+//             data.bathroomsareavailabletoguests.dedicated,
+//             data.bathroomsareavailabletoguests.shared,
+//             data.placelocated.latitude,
+//             data.placelocated.longitude,
+//             data.weekdaybaseprice.price,
+//             data.weekendprice.price
+//         ]);
+//         const propertyId = propertyResult.insertId;
+
+//         // 2. Insert property location
+//         await connection.query(`
+//             INSERT INTO property_addresses
+//             (property_id, street_address, city, state_province, postal_code, country, latitude, longitude)
+//             VALUES (?,?,?,?,?,?,?,?)
+//         `, [
+//             propertyId,
+//             data.placelocated.streetaddress,
+//             data.placelocated.district,
+//             data.placelocated.state,
+//             data.placelocated.pincode,
+//             data.placelocated.country,
+//             data.placelocated.latitude,
+//             data.placelocated.longitude
+//         ]);
+
+//         // 3. Insert host address
+//         await connection.query(`
+//             INSERT INTO host_addresses
+//             (host_id, street_address, city, state_province, zip_code, country, landmark,district)
+//             VALUES (?,?,?,?,?,?,?,?)
+//         `, [
+//             hostId,
+//             data.residentailaddress.streetaddress,
+//             data.residentailaddress.city,
+//             data.residentailaddress.state,
+//             data.residentailaddress.pincode,
+//             data.residentailaddress.country,
+//             data.residentailaddress.landmark,
+//             data.residentailaddress.district
+//         ]);
+
+//         // 4. Insert images
+//         if (data.placePhotos?.images?.length) {
+//             for (let i = 0; i < data.placePhotos.images.length; i++) {
+//                 await connection.query(`
+//                     INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)
+//                 `, [
+//                     propertyId,
+//                     data.placePhotos.images[i],
+//                     i === 0 ? 1 : 0
+//                 ]);
+//             }
+//         }
+
+//         // 5. Insert amenities
+//         if (data.placehastooffer) {
+//             const amenities = Object.keys(data.placehastooffer)
+//                 .filter(k => data.placehastooffer[k] == '1');
+
+//             for (const amenity of amenities) {
+//                 const [rows] = await connection.query(`SELECT amenity_id FROM amenities WHERE value=?`, [amenity]);
+//                 if (rows.length) {
+//                     await connection.query(`
+//                         INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)
+//                     `, [propertyId, rows[0].amenity_id]);
+//                 }
+//             }
+//         }
+
+//         // 6. Insert "describe your apartment"
+//         if (data.describeyourapartment) {
+//             const amenitiesD = Object.keys(data.describeyourapartment)
+//                 .filter(k => data.describeyourapartment[k] == '1');
+
+//             for (const amenityD of amenitiesD) {
+//                 const [rows] = await connection.query(`SELECT amenity_id FROM amenities WHERE value=?`, [amenityD]);
+//                 if (rows.length) {
+//                     await connection.query(`
+//                         INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)
+//                     `, [propertyId, rows[0].amenity_id]);
+//                 }
+//             }
+//         }
+
+//         // 7. Insert booking settings
+//         if (data.pickyourbookingsetting) {
+//             await connection.query(`
+//                 INSERT INTO property_booking_settings
+//                 (property_id, approve5booking, instantbook)
+//                 VALUES (?,?,?)
+//             `, [
+//                 propertyId,
+//                 data.pickyourbookingsetting.approve5booking,
+//                 data.pickyourbookingsetting.instantbook
+//             ]);
+//         }
+
+//         // 8. Insert discounts
+//         if (data.discount) {
+//             await connection.query(`
+//                 INSERT INTO property_discounts
+//                 (property_id, newlistingpromotion, lastminutediscount, weeklydiscount, monthlydiscount)
+//                 VALUES (?,?,?,?,?)
+//             `, [
+//                 propertyId,
+//                 data.discount.newlistingpromotion,
+//                 data.discount.lastminutediscount,
+//                 data.discount.weeklydiscount,
+//                 data.discount.monthlydiscount
+//             ]);
+//         }
+
+//         // 9. Insert safety details
+//         if (data.safetydetails) {
+//             const amenitiesS = Object.keys(data.safetydetails)
+//                 .filter(k => data.safetydetails[k] == '1');
+
+//             for (const amenityS of amenitiesS) {
+//                 const [rows] = await connection.query(`SELECT amenity_id FROM amenities WHERE value=?`, [amenityS]);
+//                 if (rows.length) {
+//                     await connection.query(`
+//                         INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)
+//                     `, [propertyId, rows[0].amenity_id]);
+//                 }
+//             }
+//         }
+
+//         await connection.commit();
+//         res.json({ status: true, message: "Property added successfully", propertyId });
+
+//     } catch (err) {
+//         await connection.rollback();
+//         console.error(err);
+//         res.status(500).json({ status: false, message: "Failed to add property" });
+//     } finally {
+//         connection.release();
+//     }
+// });
+
+
+
+const multer = require("multer");
+const path = require("path");
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, "uploads/images/"),
+    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+});
+
+const upload = multer({ storage });
+
+
+
+router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) => {
     const connection = await dbn.getConnection();
     try {
         await connection.beginTransaction();
 
         const userId = req.user.user_id;
+
         const hostId = req.user.host_id || 1;
-        const { data } = req.body;
-        console.log(data);
+
+        // Parse `data` JSON
+        const data = JSON.parse(req.body.data);
+        let status = 0;
+        let statusStr = req.body.status;
+        if (statusStr == "Approve") {
+            status = 1;
+        }
+        // 
+        console.log("Property Data:", data);
+        // console.log("Uploaded Files:", req.files);
+        // return;
 
         // 1. Insert into properties
-        const [propertyResult] = await connection.query(`
-            INSERT INTO properties 
-            (host_id, title, description, property_type, describe_apartment, other_people, room_type, 
-             max_guests, bedrooms, bedroom_look, beds, bathrooms, attached_bathrooms, dedicated_bathrooms, shard_bathrooms,
-             latitude, longitude, weekday_price, weekend_price, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())
+        const [propertyResult] = await connection.query(`INSERT INTO properties  (host_id, title, description, property_type, 
+            describe_apartment, other_people, room_type, max_guests, bedrooms,  bedroom_look, beds, bathrooms, attached_bathrooms, 
+            dedicated_bathrooms, shard_bathrooms,latitude, longitude, weekday_price, weekend_price, created_at,status,reservation_type)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?)
         `, [
             hostId,
-            data.apartmenttitle.title,
-            data.aprtmentdescription.description,
-            data.liketohost.type,
-            data.describeyourplace.type,
-            data.elsemightbethere.type,
-            data.typeofplaceguesthave.type,
-            data.startwiththebasics.peoplecanstay.guests,
-            data.startwiththebasics.peoplecanstay.bedrooms,
-            data.startwiththebasics.havealock.type,
-            data.startwiththebasics.peoplecanstay.beds,
-            parseInt(data.bathroomsareavailabletoguests.privateandatteched) +
-            parseInt(data.bathroomsareavailabletoguests.dedicated) +
-            parseInt(data.bathroomsareavailabletoguests.shared),
-            data.bathroomsareavailabletoguests.privateandatteched,
-            data.bathroomsareavailabletoguests.dedicated,
-            data.bathroomsareavailabletoguests.shared,
-            data.placelocated.latitude,
-            data.placelocated.longitude,
-            data.weekdaybaseprice.price,
-            data.weekendprice.price
+            data.apartmenttitle?.title || "",
+            data.apartmentdescription?.description || "",
+            data.liketohost?.type || "",
+            data.describeyourplace?.type || "",
+            data.elsemightbethere?.type || "",
+            data.typeofplaceguesthave?.type || "",
+            data.startwiththebasics.peoplecanstay?.guests || "0",
+            data.startwiththebasics.peoplecanstay?.bedrooms || "0",
+            data.startwiththebasics.havealock?.type || "",
+            data.startwiththebasics.peoplecanstay?.beds || "0",
+            parseInt(data.bathroomsareavailabletoguests.privateandatteched) + parseInt(data.bathroomsareavailabletoguests.dedicated) + parseInt(data.bathroomsareavailabletoguests.shared),
+            data.bathroomsareavailabletoguests?.privateandatteched,
+            data.bathroomsareavailabletoguests?.dedicated,
+            data.bathroomsareavailabletoguests?.shared,
+            data.placelocated?.latitude || 0,
+            data.placelocated?.longitude || 0,
+            data.weekdaybaseprice?.price || 0,
+            data.weekendprice?.price || 0,
+            status || 0,
+            data?.reservationType
         ]);
         const propertyId = propertyResult.insertId;
 
         // 2. Insert property location
-        await connection.query(`
+        if (data.placelocated) {
+            await connection.query(`
             INSERT INTO property_addresses
-            (property_id, street_address, city, state_province, postal_code, country, latitude, longitude)
-            VALUES (?,?,?,?,?,?,?,?)
+            (property_id, street_address, city,district, state_province, postal_code, country, latitude, longitude)
+            VALUES (?,?,?,?,?,?,?,?,?)
         `, [
-            propertyId,
-            data.placelocated.streetaddress,
-            data.placelocated.district,
-            data.placelocated.state,
-            data.placelocated.pincode,
-            data.placelocated.country,
-            data.placelocated.latitude,
-            data.placelocated.longitude
-        ]);
+                propertyId,
+                data.placelocated.streetaddress,
+                data.placelocated.city,
+                data.placelocated.district,
+                data.placelocated.state,
+                data.placelocated.pincode,
+                data.placelocated.country,
+                data.placelocated.latitude,
+                data.placelocated.longitude
+            ]);
+        }
+
 
         // 3. Insert host address
-        await connection.query(`
+        if (data.residentailaddress) {
+            await connection.query(`
             INSERT INTO host_addresses
-            (host_id, street_address, city, state_province, zip_code, country, landmark,district)
-            VALUES (?,?,?,?,?,?,?,?)
+            (host_id,flat, street_address, city, state_province, zip_code, country, landmark,district)
+            VALUES (?,?,?,?,?,?,?,?,?)
         `, [
-            hostId,
-            data.residentialaddress.streetaddress,
-            data.residentialaddress.city,
-            data.residentialaddress.state,
-            data.residentialaddress.pincode,
-            data.residentialaddress.country,
-            data.residentialaddress.landmark,
-            data.residentialaddress.district
-        ]);
+                hostId,
+                data.residentailaddress.flat,
+                data.residentailaddress.streetaddress,
+                data.residentailaddress.city,
+                data.residentailaddress.state,
+                data.residentailaddress.pincode,
+                data.residentailaddress.country,
+                data.residentailaddress.landmark,
+                data.residentailaddress.district
+            ]);
+        }
 
         // 4. Insert images
-        if (data.placePhotos?.images?.length) {
-            for (let i = 0; i < data.placePhotos.images.length; i++) {
-                await connection.query(`
-                    INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)
-                `, [
-                    propertyId,
-                    data.placePhotos.images[i],
-                    i === 0 ? 1 : 0
-                ]);
+        if (req.files && req.files.length) {
+            for (let i = 0; i < req.files.length; i++) {
+                const imageUrl = `/uploads/images/${req.files[i].filename}`; // relative path
+                await connection.query(`INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
+                    [propertyId, imageUrl, i === 0 ? 1 : 0]);
             }
         }
 
         // 5. Insert amenities
         if (data.placehastooffer) {
-            const amenities = Object.keys(data.placehastooffer)
-                .filter(k => data.placehastooffer[k] == '1');
+            const amenities = Object.keys(data.placehastooffer).filter(k => data.placehastooffer[k] == '1');
 
             for (const amenity of amenities) {
                 const [rows] = await connection.query(`SELECT amenity_id FROM amenities WHERE value=?`, [amenity]);
                 if (rows.length) {
-                    await connection.query(`
-                        INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)
-                    `, [propertyId, rows[0].amenity_id]);
+                    await connection.query(`INSERT INTO property_amenities (property_id, amenity_id,data_key) VALUES (?,?,?)`,
+                        [propertyId, rows[0].amenity_id, "placehastooffer"]);
                 }
             }
+
         }
 
         // 6. Insert "describe your apartment"
-        if (data.describeyourapartment) {
-            const amenitiesD = Object.keys(data.describeyourapartment)
-                .filter(k => data.describeyourapartment[k] == '1');
+        if (data.describeyourapartment && Object.keys(data.describeyourapartment).length > 0) {
+            const amenitiesD = Object.keys(data.describeyourapartment).filter(k => data.describeyourapartment[k] == '1');
 
             for (const amenityD of amenitiesD) {
                 const [rows] = await connection.query(`SELECT amenity_id FROM amenities WHERE value=?`, [amenityD]);
                 if (rows.length) {
                     await connection.query(`
-                        INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)
-                    `, [propertyId, rows[0].amenity_id]);
+                        INSERT INTO property_amenities (property_id, amenity_id,data_key) VALUES (?,?,?)
+                    `, [propertyId, rows[0].amenity_id, "describeyourapartment"]);
                 }
             }
         }
 
         // 7. Insert booking settings
-        if (data.pickyourbookingsetting) {
-            await connection.query(`
-                INSERT INTO property_booking_settings
-                (property_id, approve5booking, instantbook)
-                VALUES (?,?,?)
-            `, [
+        if (data.pickyourbookingsetting && Object.keys(data.pickyourbookingsetting).length > 0) {
+            await connection.query(`INSERT INTO property_booking_settings (property_id, approve5booking, instantbook) VALUES (?,?,?) `, [
                 propertyId,
                 data.pickyourbookingsetting.approve5booking,
                 data.pickyourbookingsetting.instantbook
@@ -259,7 +452,7 @@ router.post('/add-property', async (req, res) => {
         }
 
         // 8. Insert discounts
-        if (data.discount) {
+        if (data.discount && Object.keys(data.discount).length > 0) {
             await connection.query(`
                 INSERT INTO property_discounts
                 (property_id, newlistingpromotion, lastminutediscount, weeklydiscount, monthlydiscount)
@@ -274,7 +467,7 @@ router.post('/add-property', async (req, res) => {
         }
 
         // 9. Insert safety details
-        if (data.safetydetails) {
+        if (data.safetydetails && Object.keys(data.safetydetails).length > 0) {
             const amenitiesS = Object.keys(data.safetydetails)
                 .filter(k => data.safetydetails[k] == '1');
 
@@ -282,8 +475,8 @@ router.post('/add-property', async (req, res) => {
                 const [rows] = await connection.query(`SELECT amenity_id FROM amenities WHERE value=?`, [amenityS]);
                 if (rows.length) {
                     await connection.query(`
-                        INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)
-                    `, [propertyId, rows[0].amenity_id]);
+                        INSERT INTO property_amenities (property_id, amenity_id,data_key) VALUES (?,?,?)
+                    `, [propertyId, rows[0].amenity_id, "safetydetails"]);
                 }
             }
         }
@@ -299,7 +492,6 @@ router.post('/add-property', async (req, res) => {
         connection.release();
     }
 });
-
 
 // // // // // edit property 
 router.post('/edit-property', async (req, res) => {
@@ -376,9 +568,9 @@ router.post('/edit-property', async (req, res) => {
             updateQuery = `UPDATE properties SET title=? WHERE property_id=?`;
             updateValue = [data.apartmenttitle.title, propertyId];
         }
-        else if (type == "aprtmentdescription") {
+        else if (type == "apartmentdescription") {
             updateQuery = `UPDATE properties SET description=? WHERE property_id=?`;
-            updateValue = [data.aprtmentdescription.description, propertyId];
+            updateValue = [data.apartmentdescription.description, propertyId];
         }
         else if (type == "pickyourbookingsetting") {
             updateQuery = `UPDATE property_booking_settings SET approve5booking=?, instantbook=? WHERE property_id=?`;
@@ -408,18 +600,19 @@ router.post('/edit-property', async (req, res) => {
                 propertyId
             ];
         }
-        else if (type == "residentialaddress") {
+        else if (type == "residentailaddress") {
             updateQuery = `UPDATE host_addresses 
-                           SET street_address=?, city=?, state_province=?, zip_code=?, country=?, landmark=?, district=? 
+                           SET flat=?,street_address=?, city=?, state_province=?, zip_code=?, country=?, landmark=?, district=? 
                            WHERE host_id=?`;
             updateValue = [
-                data.residentialaddress.streetaddress,
-                data.residentialaddress.city,
-                data.residentialaddress.state,
-                data.residentialaddress.pincode,
-                data.residentialaddress.country,
-                data.residentialaddress.landmark,
-                data.residentialaddress.district,
+                data.residentailaddress.flat,
+                data.residentailaddress.streetaddress,
+                data.residentailaddress.city,
+                data.residentailaddress.state,
+                data.residentailaddress.pincode,
+                data.residentailaddress.country,
+                data.residentailaddress.landmark,
+                data.residentailaddress.district,
                 hostId
             ];
         }
@@ -437,6 +630,7 @@ router.post('/edit-property', async (req, res) => {
                 }
             }
         }
+
         else if (type == "placehastooffer" || type == "describeyourapartment" || type == "safetydetails") {
             await db.promise().query(`DELETE FROM property_amenities WHERE property_id=?`, [propertyId]);
             const items = Object.keys(data[type]).filter(k => data[type][k] == '1');
@@ -465,9 +659,9 @@ router.post('/edit-property', async (req, res) => {
 
 
 // view property
+
 router.get('/view-property', async (req, res) => {
     const { propertyId } = req.query;
-
     try {
         // 1. Fetch property details
         const [propertyRows] = await db.promise().query(`
@@ -495,7 +689,7 @@ router.get('/view-property', async (req, res) => {
 
         // 5. Amenities
         const [amenityRows] = await db.promise().query(`
-            SELECT a.value 
+            SELECT a.value ,pa.data_key
             FROM property_amenities pa 
             JOIN amenities a ON pa.amenity_id=a.amenity_id 
             WHERE pa.property_id=?
@@ -519,16 +713,25 @@ router.get('/view-property', async (req, res) => {
         const describeyourapartment = {};
         const safetydetails = {};
 
-        // Example mapping: you can extend logic to split based on category
-        for (const a of amenitiesList) {
-            // Suppose amenities have categories (Internet, Safety, etc.)
-            // you can query category also if needed
-            if (["wifi", "tv"].includes(a)) {
-                placehastooffer[a] = "1";
-            } else if (["sofa", "kitchen"].includes(a)) {
-                describeyourapartment[a] = "1";
-            } else {
-                safetydetails[a] = "1";
+        // // Example mapping: you can extend logic to split based on category
+        // for (const a of amenitiesList) {
+        //                 if (["wifi", "tv"].includes(a)) {
+        //         placehastooffer[a] = "1";
+        //     } else if (["sofa", "kitchen"].includes(a)) {
+        //         describeyourapartment[a] = "1";
+        //     } else {
+        //         safetydetails[a] = "1";
+        //     }           
+        // }
+
+        for (const row of amenityRows) {
+            const { value, data_key } = row;
+            if (data_key == "placehastooffer") {
+                placehastooffer[value] = "1";
+            } else if (data_key == "describeyourapartment") {
+                describeyourapartment[value] = "1";
+            } else if (data_key == "safetydetails") {
+                safetydetails[value] = "1";
             }
         }
 
@@ -539,7 +742,7 @@ router.get('/view-property', async (req, res) => {
             typeofplaceguesthave: { type: property.room_type },
             elsemightbethere: { type: property.other_people },
             apartmenttitle: { title: property.title },
-            aprtmentdescription: { description: property.description },
+            apartmentdescription: { description: property.description },
 
             startwiththebasics: {
                 peoplecanstay: {
@@ -558,7 +761,8 @@ router.get('/view-property', async (req, res) => {
 
             placelocated: {
                 streetaddress: address.street_address,
-                district: address.city,
+                district: address.district,
+                city: address.city,
                 state: address.state_province,
                 pincode: address.postal_code,
                 country: address.country,
@@ -566,7 +770,8 @@ router.get('/view-property', async (req, res) => {
                 longitude: address.longitude
             },
 
-            residentialaddress: {
+            residentailaddress: {
+                flat: hostAddress.flat,
                 streetaddress: hostAddress.street_address,
                 city: hostAddress.city,
                 state: hostAddress.state_province,
@@ -591,13 +796,14 @@ router.get('/view-property', async (req, res) => {
 
             weekdaybaseprice: { price: property.weekday_price },
             weekendprice: { price: property.weekend_price },
-
             discount: {
                 newlistingpromotion: discount.newlistingpromotion || 0,
                 lastminutediscount: discount.lastminutediscount || 0,
                 weeklydiscount: discount.weeklydiscount || 0,
                 monthlydiscount: discount.monthlydiscount || 0
-            }
+            },
+            reservationType: property.reservation_type
+
         };
 
         res.json({ status: true, message: "Property fetched successfully", data });
@@ -608,5 +814,52 @@ router.get('/view-property', async (req, res) => {
     }
 });
 
+
+
+router.get('/viewPropertyList', async (req, res) => {
+    const hostId = req.user.host_id;
+
+    if (!hostId) {
+        return res.status(400).json({ status: false, message: "Host Not found pls re-login" });
+    }
+
+    try {
+        // 1. Fetch property details
+        const [property] = await db.promise().query(`SELECT property_id,title,status FROM properties WHERE host_id = ?`, [hostId]);
+        if (!property.length) {
+            return res.status(200).json({ status: false, message: "Property not found" });
+        }
+        res.json({ status: true, message: "Property fetched successfully", data: property });
+    } catch (err) {
+        console.error("View property error:", err);
+        res.status(500).json({ status: false, message: "Server error" });
+    }
+});
+
+
 // Export the router
 module.exports = router;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// SELECT val.value
+// FROM (
+//     SELECT 'wifi' AS value UNION ALL
+//     SELECT 'tv' UNION ALL
+//      SELECT 'weapon'
+// ) AS val
+// LEFT JOIN amenities a ON a.value = val.value
+// WHERE a.value IS NULL;
