@@ -155,18 +155,21 @@ router.post("/toggle-address-status", async (req, res) => {
 
 
 // Route to get host verifications
-router.get("/hostVerifications", async (req, res) => {
+router.get("/verifications", async (req, res) => {
     const userId = req.user.user_id;
     const { page = 1, limit = 10, search = "", status = "" } = req.query;
 
     try {
         let query = "SELECT * FROM host_verifications WHERE 1=1";
         const queryParams = [];
-
+        query += " AND  userId=?";
+        queryParams.push(userId);
         if (status) {
-            query += " AND verified = ?";
+
+            query += " AND verified = ? ?";
             queryParams.push(status);
         }
+
         if (search) {
             query += " AND (document_type LIKE ? OR document_url LIKE ?)";
             const searchPattern = `%${search}%`;

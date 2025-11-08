@@ -20,6 +20,7 @@ router.get("/user", async (req, res) => {
 });
 
 
+
 router.put("/user/update", async (req, res) => {
   const userId = req.user.user_id;
   const { name, email, phone_number, about } = req.body;

@@ -1,24 +1,17 @@
-// in this page user view all proparty,booking,review,house rules,amenities,images,availability
-// and also user can search proparty by latitude and longitude
-// and also user can filter proparty by price,property type,room type,amenities
-// and also user can paginate the propartyqs
-// and also user can sort proparty by price,created_at,updated_at
-// and also user can view all proparty details by property_id
-// and also user can view all proparty details by property_id with all related data like address,amenities,availability,images,house rules,reviews
-
 const express = require('express');
 const router = express.Router();
 const db = require('../../../db/ConnectionSql');
 
+
 // Get all properties with details for a user
 router.get('/getAllProperties', async (req, res) => {
+    const userId = req.user.user_id;
     const { page = 1, limit = 10, search = "", sortBy = "price_per_night", sortOrder = "asc", latitude, longitude, radius = 5 } = req.query;
 
     try {
-
         let query = `
             SELECT p.property_id, p.title, p.description, p.property_type, p.room_type, p.max_guests,
-                   p.bedrooms, p.beds, p.bathrooms, p.price_per_night, pa.street_address, pa.city, p.latitude, p.longitude,
+                   p.bedrooms, p.beds, p.bathrooms, p.price_per_night, pa.street_address, pa.city, p.latitude, p.longitude,p.weekday_price,p.weekend_price,
                    pa.state_province, pa.postal_code, pa.country, GROUP_CONCAT(DISTINCT a.name) AS amenities,
                    GROUP_CONCAT(DISTINCT pi.image_url) AS images
             FROM properties p
@@ -26,9 +19,9 @@ router.get('/getAllProperties', async (req, res) => {
             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
             LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
             LEFT JOIN property_images pi ON p.property_id = pi.property_id
-            WHERE 1=1
-        `;
+            WHERE 1=1 `;
         const queryParams = [];
+
         if (search) {
             query += " AND (p.title LIKE ? OR p.description LIKE ? OR pa.street_address LIKE ?)";
             const searchPattern = `%${search}%`;
@@ -38,11 +31,9 @@ router.get('/getAllProperties', async (req, res) => {
             query += ` AND ST_Distance_Sphere(
                         point(pa.longitude, pa.latitude),
                         point(?, ?)
-                    ) <= ? * 1000`; // radius in km to meters
+                    ) <= ? * 1000`;
             queryParams.push(parseFloat(longitude), parseFloat(latitude), parseFloat(radius));
         }
-
-
 
         query += ` GROUP BY p.property_id ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`;
         queryParams.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
@@ -72,11 +63,15 @@ router.get('/getAllProperties', async (req, res) => {
         }
 
         const [countResult] = await db.promise().query(countQuery, search ? [searchPattern, searchPattern, searchPattern] : []);
-        const formattedProperties = properties.map(p => ({
-            ...p,
-            amenities: p.amenities ? p.amenities.split(",") : [],
-            images: p.images ? p.images.split(",") : []
-        }));
+
+        const formattedProperties = await Promise.all(
+            properties.map(async (p) => ({
+                ...p,
+                amenities: p.amenities ? p.amenities.split(",") : [],
+                images: p.images ? p.images.split(",") : [],
+                favourite: await favouriteCheck(userId, p.property_id) // returns true/false
+            }))
+        );
 
         res.json({
             status: true,
@@ -108,7 +103,7 @@ router.get('/getPropertyDetails', async (req, res) => {
                    GROUP_CONCAT(DISTINCT a.name) AS amenities,
                    GROUP_CONCAT(DISTINCT pi.image_url) AS images
             FROM properties p
-            JOIN property_addresses pa ON p.address_id = pa.address_id
+            JOIN  property_addresses pa ON p.property_id = pa.property_id
             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
             LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
             LEFT JOIN property_images pi ON p.property_id = pi.property_id
@@ -128,9 +123,6 @@ router.get('/getPropertyDetails', async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
-
-
 
 
 // Get all bookings for a user
@@ -172,8 +164,8 @@ router.get('/getUserBookings', async (req, res) => {
 });
 
 
-// Get reviews for a user
-router.get('/getUserReviews', async (req, res) => {
+// Get reviews for a user 
+router.get('/review/view', async (req, res) => {
     const userId = req.user.user_id; // Assuming user ID is stored in req.user
     const { page = 1, limit = 10 } = req.query;
 
@@ -293,8 +285,8 @@ router.get('/getPropertyImages', async (req, res) => {
     }
 });
 
-// Get property availability
 
+// Get property availability
 router.get('/getPropertyAvailability', async (req, res) => {
     const { property_id } = req.query;
 
@@ -443,9 +435,7 @@ router.get('/searchProperties', async (req, res) => {
 );
 
 
-
 //add user review
-
 router.post('/addUserReview', async (req, res) => {
     const { booking_id, rating, comment } = req.body;
     const userId = req.user.user_id; // Assuming user ID is stored in req.user
@@ -476,11 +466,7 @@ router.post('/addUserReview', async (req, res) => {
 });
 
 
-
-
-
 // user booking handal 
-
 router.post('/userBooking', async (req, res) => {
     const { property_id, check_in_date, check_out_date, guests_count } = req.body;
     const userId = req.user.user_id; // Assuming user ID is stored in req.user
@@ -524,8 +510,6 @@ router.post('/userBooking', async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
-
 
 
 // view proparty reviews by property_id
@@ -596,6 +580,18 @@ router.post('/addPropertyReview', async (req, res) => {
     }
 });
 
+const favouriteCheck = async (userId, propertyId) => {
+    try {
+        const [rows] = await db.promise().query(
+            `SELECT user_id FROM favourites WHERE user_id = ? AND property_id = ? LIMIT 1`,
+            [userId, propertyId]
+        );
+        return rows.length > 0; // ✅ returns true or false
+    } catch (err) {
+        console.error("Error checking favourite:", err);
+        return false;
+    }
+};
 
 
 // Export the router
