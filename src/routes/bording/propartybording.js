@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-// const db = require('../../../db/dbSql');
 const db = require('../../../db/ConnectionSql');
 const dbn = require('../../../db/db');
 
@@ -95,7 +94,6 @@ router.get('/properties', async (req, res) => {
 
 router.get('/host-properties', async (req, res) => {
     const hostId = req.user.host_id;
-    // console.log(hostId)
 
     if (!hostId) {
         return res.status(400).json({ status: false, message: "Host ID is required" });
@@ -149,17 +147,17 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
     try {
         await connection.beginTransaction();
         const userId = req.user.user_id;
-        const hostId = req.user.host_id || 1;
-
+        const hostId = req.user.host_id || 0;
         // Parse `data` JSON
         const data = JSON.parse(req.body.data);
+
+        console.log("add data=", data);
         let status = 0;
         let statusStr = req.body.status;
+        
         if (statusStr == "Approve") {
             status = 1;
         }
-
-        console.log("Property Data:", data);
 
         // 1. Insert into properties
         const [propertyResult] = await connection.query(`INSERT INTO properties  (host_id, title, description, property_type, 
@@ -296,6 +294,179 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
             }
         }
 
+
+        await connection.commit();
+        res.json({ status: true, message: "Property added successfully", propertyId });
+
+    } catch (err) {
+        await connection.rollback();
+        console.error(err);
+        res.status(500).json({ status: false, message: "Failed to add property" });
+    } finally {
+        connection.release();
+    }
+});
+router.post('/add-propertyWeb',  async (req, res) => {
+    const connection = await dbn.getConnection();
+    try {
+        await connection.beginTransaction();
+        const userId = req.user.user_id;
+        const hostId = req.user.host_id || 0;
+        // Parse `data` JSON
+        const data = JSON.parse(req.body.data);
+
+        console.log("add data=", data);
+        let status = 0;
+        let statusStr = req.body.status;
+        
+        if (statusStr == "Approve") {
+            status = 1;
+        }
+
+        // 1. Insert into properties
+        const [propertyResult] = await connection.query(`INSERT INTO properties  (host_id, title, description, property_type, 
+            describe_apartment, other_people, room_type, max_guests, bedrooms,  bedroom_look, beds, bathrooms, attached_bathrooms, 
+            dedicated_bathrooms, shard_bathrooms,latitude, longitude, weekday_price, weekend_price, created_at,status,reservation_type)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?)
+        `, [
+            hostId,
+            data.apartmenttitle?.title || "",
+            data.apartmentdescription?.description || "",
+            data.liketohost?.type || "",
+            data.describeyourplace?.type || "",
+            data.elsemightbethere?.type || "",
+            data.typeofplaceguesthave?.type || "",
+            data.startwiththebasics?.peoplecanstay?.guests || "0",
+            data.startwiththebasics?.peoplecanstay?.bedrooms || "0",
+            data.startwiththebasics?.havealock?.type || "",
+            data.startwiththebasics?.peoplecanstay?.beds || "0",
+            parseInt(data.bathroomsareavailabletoguests?.privateandatteched || 0) + parseInt(data.bathroomsareavailabletoguests?.dedicated || 0) + parseInt(data.bathroomsareavailabletoguests?.shared || 0),
+            data.bathroomsareavailabletoguests?.privateandatteched || 0,
+            data.bathroomsareavailabletoguests?.dedicated || 0,
+            data.bathroomsareavailabletoguests?.shared || 0,
+            data.placelocated?.latitude || 0,
+            data.placelocated?.longitude || 0,
+            data.weekdaybaseprice?.price || 0,
+            data.weekendprice?.price || 0,
+            status || 0,
+            data?.reservationType || ""
+        ]);
+
+        const propertyId = propertyResult.insertId;
+
+        // 2. Insert property location
+        if (data.placelocated && Object.keys(data.placelocated).length > 0) {
+            await connection.query(`
+            INSERT INTO property_addresses
+            (property_id, street_address, city,district, state_province, postal_code, country, latitude, longitude)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        `, [
+                propertyId,
+                data.placelocated?.streetaddress || "",
+                data.placelocated?.city || "",
+                data.placelocated?.district || "",
+                data.placelocated?.state || "",
+                data.placelocated?.pincode || "",
+                data.placelocated?.country || "",
+                data.placelocated?.latitude || "",
+                data.placelocated.longitude || ""
+            ]);
+        }
+
+        // 3. Insert host address
+        if (data.residentailaddress && Object.keys(data.residentailaddress).length > 0) {
+            await connection.query(`
+            INSERT INTO host_addresses
+            (host_id,flat, street_address, city, state_province, zip_code, country, landmark,district)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        `, [
+                hostId,
+                data.residentailaddress?.flat,
+                data.residentailaddress?.streetaddress,
+                data.residentailaddress?.city,
+                data.residentailaddress?.state,
+                data.residentailaddress?.pincode,
+                data.residentailaddress?.country,
+                data.residentailaddress?.landmark,
+                data.residentailaddress?.district
+            ]);
+        }
+
+        // 4. Insert images
+        // if (req.files && req.files.length) {
+        //     for (let i = 0; i < req.files.length; i++) {
+        //         const imageUrl = `/uploads/images/${req.files[i].filename}`; // relative path
+        //         await connection.query(`INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
+        //             [propertyId, imageUrl, i === 0 ? 1 : 0]);
+        //     }
+        // }
+
+        if (data?.placesPhotos && data?.placesPhotos?.length) {
+            for (let i = 0; i < data?.placesPhotos.length; i++) {
+                const imageUrl = `${data?.placesPhotos[i]}`; 
+                await connection.query(`INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
+                    [propertyId, imageUrl, i === 0 ? 1 : 0]);
+            }
+        }
+
+        // 5. Insert amenities
+        if (data.placehastooffer && Object.keys(data.placehastooffer).length > 0) {
+            const amenities = Object.keys(data.placehastooffer).filter(k => data.placehastooffer[k] == '1');
+
+            for (const amenity of amenities) {
+                const [rows] = await connection.query(`SELECT amenity_id FROM amenities WHERE value=?`, [amenity]);
+                if (rows.length) {
+                    await connection.query(`INSERT INTO property_amenities (property_id, amenity_id,data_key) VALUES (?,?,?)`,
+                        [propertyId, rows[0].amenity_id, "placehastooffer"]);
+                }
+            }
+        }
+
+        // 6. Insert "describe your apartment"
+        if (data.describeyourapartment && Object.keys(data.describeyourapartment).length > 0) {
+            const amenitiesD = Object.keys(data.describeyourapartment).filter(k => data.describeyourapartment[k] == '1');
+
+            for (const amenityD of amenitiesD) {
+                const [rows] = await connection.query(`SELECT amenity_id FROM amenities WHERE value=?`, [amenityD]);
+                if (rows.length) {
+                    await connection.query(`
+                        INSERT INTO property_amenities (property_id, amenity_id,data_key) VALUES (?,?,?)
+                    `, [propertyId, rows[0].amenity_id, "describeyourapartment"]);
+                }
+            }
+        }
+
+        // 7. Insert booking settings
+        if (data.pickyourbookingsetting && Object.keys(data.pickyourbookingsetting).length > 0) {
+            await connection.query(`INSERT INTO property_booking_settings (property_id, approve5booking, instantbook) VALUES (?,?,?) `, [
+                propertyId,
+                data.pickyourbookingsetting?.approve5booking || 0,
+                data.pickyourbookingsetting?.instantbook || 0
+            ]);
+        }
+
+        // 8. Insert discounts
+        if (data.discount && Object.keys(data.discount).length > 0) {
+            await connection.query(`
+                INSERT INTO property_discounts
+                (property_id, newlistingpromotion, lastminutediscount, weeklydiscount, monthlydiscount) VALUES (?,?,?,?,?)`,
+                [propertyId, data.discount?.newlistingpromotion || 0, data.discount?.lastminutediscount || 0, data.discount?.weeklydiscount || 0, data.discount?.monthlydiscount || 0]);
+        }
+
+        // 9. Insert safety details
+        if (data.safetydetails && Object.keys(data.safetydetails).length > 0) {
+            const amenitiesS = Object.keys(data.safetydetails)
+                .filter(k => data.safetydetails[k] == '1');
+
+            for (const amenityS of amenitiesS) {
+                const [rows] = await connection.query(`SELECT amenity_id FROM amenities WHERE value=?`, [amenityS]);
+                if (rows.length) {
+                    await connection.query(`INSERT INTO property_amenities (property_id, amenity_id,data_key) VALUES (?,?,?)`, [propertyId, rows[0].amenity_id, "safetydetails"]);
+                }
+            }
+        }
+
+
         await connection.commit();
         res.json({ status: true, message: "Property added successfully", propertyId });
 
@@ -308,7 +479,394 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
     }
 });
 
+
+router.post("/edit-propertyWeb",
+    async (req, res) => {
+        const connection = await dbn.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            const userId = req.user.user_id;
+            const hostId = req.user.host_id || 0;
+
+            const data = JSON.parse(req.body.data);
+            const property_Id = req.body.property_Id;
+            console.log(property_Id, "=edit =", data)
+            if (!property_Id) {
+                return res
+                    .status(400)
+                    .json({ status: false, message: "property_Id is required" });
+            }
+
+            let status = 0;
+            if (req.body.status === "Approve") status = 1;
+
+            /* =========================
+               1. UPDATE PROPERTIES
+            ========================== */
+            await connection.query(
+                `
+        UPDATE properties SET
+          title=?,
+          description=?,
+          property_type=?,
+          describe_apartment=?,
+          other_people=?,
+          room_type=?,
+          max_guests=?,
+          bedrooms=?,
+          bedroom_look=?,
+          beds=?,
+          bathrooms=?,
+          attached_bathrooms=?,
+          dedicated_bathrooms=?,
+          shard_bathrooms=?,
+          latitude=?,
+          longitude=?,
+          weekday_price=?,
+          weekend_price=?,
+          status=?,
+          reservation_type=?
+        WHERE property_id=? AND host_id=?
+      `,
+                [
+                    data.apartmenttitle?.title || "",
+                    data.apartmentdescription?.description || "",
+                    data.liketohost?.type || "",
+                    data.describeyourplace?.type || "",
+                    data.elsemightbethere?.type || "",
+                    data.typeofplaceguesthave?.type || "",
+                    data.startwiththebasics?.peoplecanstay?.guests || 0,
+                    data.startwiththebasics?.peoplecanstay?.bedrooms || 0,
+                    data.startwiththebasics?.havealock?.type || "",
+                    data.startwiththebasics?.peoplecanstay?.beds || 0,
+                    parseInt(data.bathroomsareavailabletoguests?.privateandatteched || 0) +
+                    parseInt(data.bathroomsareavailabletoguests?.dedicated || 0) +
+                    parseInt(data.bathroomsareavailabletoguests?.shared || 0),
+                    data.bathroomsareavailabletoguests?.privateandatteched || 0,
+                    data.bathroomsareavailabletoguests?.dedicated || 0,
+                    data.bathroomsareavailabletoguests?.shared || 0,
+                    data.placelocated?.latitude || 0,
+                    data.placelocated?.longitude || 0,
+                    data.weekdaybaseprice?.price || 0,
+                    data.weekendprice?.price || 0,
+                    status,
+                    data?.reservationType || "",
+                    property_Id,
+                    hostId
+                ]
+            );
+
+            /* =========================
+               2. UPDATE PROPERTY ADDRESS
+            ========================== */
+            await connection.query(
+                `
+        UPDATE property_addresses SET
+          street_address=?,
+          city=?,
+          district=?,
+          state_province=?,
+          postal_code=?,
+          country=?,
+          latitude=?,
+          longitude=?
+        WHERE property_id=?
+      `,
+                [
+                    data.placelocated?.streetaddress || "",
+                    data.placelocated?.city || "",
+                    data.placelocated?.district || "",
+                    data.placelocated?.state || "",
+                    data.placelocated?.pincode || "",
+                    data.placelocated?.country || "",
+                    data.placelocated?.latitude || "",
+                    data.placelocated?.longitude || "",
+                    property_Id
+                ]
+            );
+
+            /* =========================
+               3. DELETE OLD DATA
+            ========================== */
+            // await connection.query(
+            //     "DELETE FROM property_images WHERE property_id=?",
+            //     [property_Id]
+            // );
+            await connection.query(
+                "DELETE FROM property_amenities WHERE property_id=?",
+                [property_Id]
+            );
+            await connection.query(
+                "DELETE FROM property_booking_settings WHERE property_id=?",
+                [property_Id]
+            );
+            await connection.query(
+                "DELETE FROM property_discounts WHERE property_id=?",
+                [property_Id]
+            );
+
+            /* =========================
+               4. INSERT IMAGES AGAIN
+            ========================== */
+            // if (req.files && req.files.length) {
+            //     for (let i = 0; i < req.files.length; i++) {
+            //         const imageUrl = `/uploads/images/${req.files[i].filename}`;
+            //         await connection.query(
+            //             `INSERT INTO property_images (property_id, image_url, is_primary)
+            //  VALUES (?,?,?)`,
+            //             [property_Id, imageUrl, i === 0 ? 1 : 0]
+            //         );
+            //     }
+            // }
+
+
+              if (data?.placesPhotos && data?.placesPhotos?.length) {
+            for (let i = 0; i < data?.placesPhotos.length; i++) {
+                const imageUrl = `${data?.placesPhotos[i]}`; 
+                await connection.query(`INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
+                    [property_Id, imageUrl, i === 0 ? 1 : 0]);
+            }
+        }
+
+            /* =========================
+               5. INSERT AMENITIES AGAIN
+            ========================== */
+            const insertAmenities = async (obj, key) => {
+                if (!obj) return;
+                for (const k of Object.keys(obj)) {
+                    if (obj[k] == "1") {
+                        const [rows] = await connection.query(
+                            "SELECT amenity_id FROM amenities WHERE value=?",
+                            [k]
+                        );
+                        if (rows.length) {
+                            await connection.query(
+                                `INSERT INTO property_amenities (property_id, amenity_id, data_key)
+                 VALUES (?,?,?)`,
+                                [property_Id, rows[0].amenity_id, key]
+                            );
+                        }
+                    }
+                }
+            };
+
+            await insertAmenities(data.placehastooffer, "placehastooffer");
+            await insertAmenities(data.describeyourapartment, "describeyourapartment");
+            await insertAmenities(data.safetydetails, "safetydetails");
+
+            /* =========================
+               6. BOOKING & DISCOUNT
+            ========================== */
+            if (data.pickyourbookingsetting) {
+                await connection.query(
+                    `INSERT INTO property_booking_settings
+           (property_id, approve5booking, instantbook)
+           VALUES (?,?,?)`,
+                    [
+                        property_Id,
+                        data.pickyourbookingsetting?.approve5booking || 0,
+                        data.pickyourbookingsetting?.instantbook || 0
+                    ]
+                );
+            }
+
+            if (data.discount) {
+                await connection.query(
+                    `INSERT INTO property_discounts
+           (property_id, newlistingpromotion, lastminutediscount, weeklydiscount, monthlydiscount)
+           VALUES (?,?,?,?,?)`,
+                    [
+                        property_Id,
+                        data.discount?.newlistingpromotion || 0,
+                        data.discount?.lastminutediscount || 0,
+                        data.discount?.weeklydiscount || 0,
+                        data.discount?.monthlydiscount || 0
+                    ]
+                );
+            }
+
+            await connection.commit();
+            res.json({
+                status: true,
+                message: "Property updated successfully",
+                property_Id
+            });
+        } catch (err) {
+            await connection.rollback();
+            console.error(err);
+            res.status(500).json({ status: false, message: "Edit failed" });
+        } finally {
+            connection.release();
+        }
+    }
+);
+
+
+
 // // // // // edit property 
+// router.post('/edit-property', async (req, res) => {
+//     const userId = req.user.user_id;
+//     const hostId = req.user.host_id;
+
+//     if (!hostId) {
+//         return res.status(400).json({ status: false, message: "Host Not found pls re-login" });
+//     }
+
+//     const { type, propertyId, data } = req.body;
+//     if (!type || !propertyId) {
+//         return res.status(400).json({ status: false, message: "Property ID and type are required" });
+//     }
+
+//     try {
+//         let updateQuery = "";
+//         let updateValue = [];
+
+//         if (type == "liketohost") {
+//             updateQuery = `UPDATE properties SET property_type = ? WHERE host_id = ? AND property_id=?`;
+//             updateValue = [data.liketohost.type, hostId, propertyId];
+//         }
+//         else if (type == "describeyourplace") {
+//             updateQuery = `UPDATE properties SET describe_apartment = ? WHERE host_id = ? AND property_id=?`;
+//             updateValue = [data.describeyourplace.type, hostId, propertyId];
+//         }
+//         else if (type == "typeofplaceguesthave") {
+//             updateQuery = `UPDATE properties SET room_type = ? WHERE host_id = ? AND property_id=?`;
+//             updateValue = [data.typeofplaceguesthave.type, hostId, propertyId];
+//         }
+//         else if (type == "placelocated") {
+//             updateQuery = `UPDATE property_addresses 
+//                            SET street_address=?, city=?, state_province=?, postal_code=?, country=?, latitude=?, longitude=? 
+//                            WHERE property_id=?`;
+//             updateValue = [
+//                 data.placelocated.streetaddress,
+//                 data.placelocated.district,
+//                 data.placelocated.state,
+//                 data.placelocated.pincode,
+//                 data.placelocated.country,
+//                 data.placelocated.latitude,
+//                 data.placelocated.longitude,
+//                 propertyId
+//             ];
+//         }
+//         else if (type == "startwiththebasics") {
+//             updateQuery = `UPDATE properties SET max_guests=?, bedrooms=?, bedroom_look=?, beds=? WHERE property_id=?`;
+//             updateValue = [
+//                 data.startwiththebasics.peoplecanstay.guests,
+//                 data.startwiththebasics.peoplecanstay.bedrooms,
+//                 data.startwiththebasics.havealock.type,
+//                 data.startwiththebasics.peoplecanstay.beds,
+//                 propertyId
+//             ];
+//         }
+//         else if (type == "bathroomsareavailabletoguests") {
+//             updateQuery = `UPDATE properties SET bathrooms=?, attached_bathrooms=?, dedicated_bathrooms=?, shard_bathrooms=? WHERE property_id=?`;
+//             updateValue = [
+//                 parseInt(data.bathroomsareavailabletoguests.privateandatteched) +
+//                 parseInt(data.bathroomsareavailabletoguests.dedicated) +
+//                 parseInt(data.bathroomsareavailabletoguests.shared),
+//                 data.bathroomsareavailabletoguests.privateandatteched,
+//                 data.bathroomsareavailabletoguests.dedicated,
+//                 data.bathroomsareavailabletoguests.shared,
+//                 propertyId
+//             ];
+//         }
+//         else if (type == "elsemightbethere") {
+//             updateQuery = `UPDATE properties SET other_people=? WHERE property_id=?`;
+//             updateValue = [data.elsemightbethere.type, propertyId];
+//         }
+//         else if (type == "apartmenttitle") {
+//             updateQuery = `UPDATE properties SET title=? WHERE property_id=?`;
+//             updateValue = [data.apartmenttitle.title, propertyId];
+//         }
+//         else if (type == "apartmentdescription") {
+//             updateQuery = `UPDATE properties SET description=? WHERE property_id=?`;
+//             updateValue = [data.apartmentdescription.description, propertyId];
+//         }
+//         else if (type == "pickyourbookingsetting") {
+//             updateQuery = `UPDATE property_booking_settings SET approve5booking=?, instantbook=? WHERE property_id=?`;
+//             updateValue = [
+//                 data.pickyourbookingsetting.approve5booking,
+//                 data.pickyourbookingsetting.instantbook,
+//                 propertyId
+//             ];
+//         }
+//         else if (type == "weekdaybaseprice") {
+//             updateQuery = `UPDATE properties SET weekday_price=? WHERE property_id=?`;
+//             updateValue = [data.weekdaybaseprice.price, propertyId];
+//         }
+//         else if (type == "weekendprice") {
+//             updateQuery = `UPDATE properties SET weekend_price=? WHERE property_id=?`;
+//             updateValue = [data.weekendprice.price, propertyId];
+//         }
+//         else if (type == "discount") {
+//             updateQuery = `UPDATE property_discounts 
+//                            SET newlistingpromotion=?, lastminutediscount=?, weeklydiscount=?, monthlydiscount=? 
+//                            WHERE property_id=?`;
+//             updateValue = [
+//                 data.discount.newlistingpromotion,
+//                 data.discount.lastminutediscount,
+//                 data.discount.weeklydiscount,
+//                 data.discount.monthlydiscount,
+//                 propertyId
+//             ];
+//         }
+//         else if (type == "residentailaddress") {
+//             updateQuery = `UPDATE host_addresses 
+//                            SET flat=?,street_address=?, city=?, state_province=?, zip_code=?, country=?, landmark=?, district=? 
+//                            WHERE host_id=?`;
+//             updateValue = [
+//                 data.residentailaddress.flat,
+//                 data.residentailaddress.streetaddress,
+//                 data.residentailaddress.city,
+//                 data.residentailaddress.state,
+//                 data.residentailaddress.pincode,
+//                 data.residentailaddress.country,
+//                 data.residentailaddress.landmark,
+//                 data.residentailaddress.district,
+//                 hostId
+//             ];
+//         }
+
+//         // ✅ Pending Parts
+// else if (type == "placePhotos") {
+//     // delete old and insert new
+//     await db.promise().query(`DELETE FROM property_images WHERE property_id=?`, [propertyId]);
+//     if (data.placePhotos?.images?.length) {
+//         for (let i = 0; i < data.placePhotos.images.length; i++) {
+//             await db.promise().query(
+//                 `INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
+//                 [propertyId, data.placePhotos.images[i], i === 0 ? 1 : 0]
+//             );
+//         }
+//     }
+// }
+
+//         else if (type == "placehastooffer" || type == "describeyourapartment" || type == "safetydetails") {
+//             await db.promise().query(`DELETE FROM property_amenities WHERE property_id=?`, [propertyId]);
+//             const items = Object.keys(data[type]).filter(k => data[type][k] == '1');
+//             for (const item of items) {
+//                 const [rows] = await db.promise().query(`SELECT amenity_id FROM amenities WHERE value=?`, [item]);
+//                 if (rows.length) {
+//                     await db.promise().query(
+//                         `INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)`,
+//                         [propertyId, rows[0].amenity_id]
+//                     );
+//                 }
+//             }
+//         }
+
+//         if (updateQuery) {
+//             await db.promise().query(updateQuery, updateValue);
+//         }
+
+//         res.json({ status: true, message: "Property updated successfully" });
+//     } catch (err) {
+//         console.error("Edit property error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
+
 router.post('/edit-property', async (req, res) => {
     const userId = req.user.user_id;
     const hostId = req.user.host_id;
@@ -321,23 +879,141 @@ router.post('/edit-property', async (req, res) => {
     if (!type || !propertyId) {
         return res.status(400).json({ status: false, message: "Property ID and type are required" });
     }
-
     try {
         let updateQuery = "";
         let updateValue = [];
+        let dataNew = "";
 
-        if (type == "liketohost") {
-            updateQuery = `UPDATE properties SET property_type = ? WHERE host_id = ? AND property_id=?`;
-            updateValue = [data.liketohost.type, hostId, propertyId];
+        if (type == "producttitle") {
+
+            updateQuery = `UPDATE properties SET title = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [data?.producttitle?.title, hostId, propertyId];
         }
-        else if (type == "describeyourplace") {
-            updateQuery = `UPDATE properties SET describe_apartment = ? WHERE host_id = ? AND property_id=?`;
-            updateValue = [data.describeyourplace.type, hostId, propertyId];
+        if (type == "direction") {
+
+            updateQuery = `UPDATE properties SET description = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [data?.direction, hostId, propertyId];
         }
-        else if (type == "typeofplaceguesthave") {
-            updateQuery = `UPDATE properties SET room_type = ? WHERE host_id = ? AND property_id=?`;
-            updateValue = [data.typeofplaceguesthave.type, hostId, propertyId];
+        else if (type == "propertytype") {
+            dataNew = data?.propertytype;
+            updateQuery = `UPDATE properties SET describe_apartment = ?,listing_type=?,floor=? ,floor_listing=?,year_built=?,property_size=?, unit=? WHERE host_id = ? AND property_id=?`;
+
+            updateValue = [dataNew?.mostlikeyourplace, dataNew?.Listingtype, dataNew?.floors, dataNew?.floorislistingon, dataNew?.yearbuilt, dataNew?.propertysize, dataNew?.unit, hostId, propertyId];
         }
+        else if (type == "pernight") {
+            dataNew = data?.pernight;
+            updateQuery = `UPDATE properties SET price_per_night = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.pernight, hostId, propertyId];
+        }
+        else if (type == "weekendprice") {
+            dataNew = data?.weekendprice;
+            updateQuery = `UPDATE properties SET weekend_price = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.weekendprice, hostId, propertyId];
+        }
+        else if (type == "weeklydiscount") {
+            dataNew = data?.weeklydiscount;
+            updateQuery = `UPDATE properties SET weekly_discount = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.weeklydiscount, hostId, propertyId];
+        }
+
+        else if (type == "monthlydiscount") {
+            dataNew = data?.monthlydiscount;
+            updateQuery = `UPDATE properties SET monthly_discount = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.monthlydiscount, hostId, propertyId];
+        }
+        else if (type == "bookingsetting") {
+            dataNew = data?.bookingsetting;
+            updateQuery = `UPDATE properties SET booking_setting = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.bookingsetting, hostId, propertyId];
+        }
+        else if (type == "numberofguests") {
+            dataNew = data?.numberofguests;
+            updateQuery = `UPDATE properties SET max_guests = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.numberofguests, hostId, propertyId];
+        }
+        else if (type == "placehastooffer" || type == "describeyourapartment" || type == "safetydetails" || type == "amenities") {
+            await db.promise().query(`DELETE FROM property_amenities WHERE property_id=?`, [propertyId]);
+            const items = Object.keys(data[type]).filter(k => data[type][k] == '1');
+            for (const item of items) {
+                const [rows] = await db.promise().query(`SELECT amenity_id FROM amenities WHERE value=?`, [item]);
+                if (rows.length) {
+                    await db.promise().query(
+                        `INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)`,
+                        [propertyId, rows[0].amenity_id]
+                    );
+                }
+            }
+        }
+
+        // new 
+        else if (type == "availability") {
+            let av = data.availability;
+            let minimumavailability = av.minimumavailability?.minimumavailability || null;
+            let maximumnights = av.maximumnights?.maximumnights || null;
+            let advancenotice = av.advancenotice?.advancenotice || null;
+            let samedayadvancenotice = av.samedayadvancenotice?.samedayadvancenotice || null;
+            let preparationtime = av.preparationtime?.preparationtime || null;
+            let availabilitywindow = av.availabilitywindow?.availabilitywindow || null;
+
+            let restricted_checkin = av.moreavailabilitysetting?.restrictedcheckin?.restrictedcheckin || null;
+            let restricted_checkout = av.moreavailabilitysetting?.restrictedcheckout?.restrictedcheckout || null;
+
+            // check if exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_availability WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // Update
+                updateQuery = `
+            UPDATE property_availability SET
+                minimumavailability = ?,
+                maximumnights = ?,
+                advancenotice = ?,
+                samedayadvancenotice = ?,
+                preparationtime = ?,
+                availabilitywindow = ?,
+                restricted_checkin = ?,
+                restricted_checkout = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    minimumavailability,
+                    maximumnights,
+                    advancenotice,
+                    samedayadvancenotice,
+                    preparationtime,
+                    availabilitywindow,
+                    restricted_checkin,
+                    restricted_checkout,
+                    propertyId
+                ];
+            } else {
+                // Insert
+                updateQuery = `
+            INSERT INTO property_availability 
+            (property_id, minimumavailability, maximumnights, advancenotice,
+             samedayadvancenotice, preparationtime, availabilitywindow,
+             restricted_checkin, restricted_checkout)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    minimumavailability,
+                    maximumnights,
+                    advancenotice,
+                    samedayadvancenotice,
+                    preparationtime,
+                    availabilitywindow,
+                    restricted_checkin,
+                    restricted_checkout
+                ];
+            }
+        }
+
         else if (type == "placelocated") {
             updateQuery = `UPDATE property_addresses 
                            SET street_address=?, city=?, state_province=?, postal_code=?, country=?, latitude=?, longitude=? 
@@ -353,84 +1029,62 @@ router.post('/edit-property', async (req, res) => {
                 propertyId
             ];
         }
-        else if (type == "startwiththebasics") {
-            updateQuery = `UPDATE properties SET max_guests=?, bedrooms=?, bedroom_look=?, beds=? WHERE property_id=?`;
-            updateValue = [
-                data.startwiththebasics.peoplecanstay.guests,
-                data.startwiththebasics.peoplecanstay.bedrooms,
-                data.startwiththebasics.havealock.type,
-                data.startwiththebasics.peoplecanstay.beds,
-                propertyId
-            ];
+        else if (type == "description") {
+            let desc = data.description;
+
+            let listingdescription = desc.listingdescription?.listingdescription || null;
+            let yourproperty = desc.yourproperty?.yourproperty || null;
+            let guestaccessdetails = desc.guestaccess?.guestaccessdetails || null;
+            let interactionwithguests = desc.interactionwithguests?.interactionwithguests || null;
+            let otherdetails = desc.otherdetails?.otherdetails || null;
+
+            // Check if exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_description_details WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE property_description_details SET
+                listingdescription = ?,
+                yourproperty = ?,
+                guestaccessdetails = ?,
+                interactionwithguests = ?,
+                otherdetails = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    listingdescription,
+                    yourproperty,
+                    guestaccessdetails,
+                    interactionwithguests,
+                    otherdetails,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO property_description_details
+            (property_id, listingdescription, yourproperty, guestaccessdetails,
+             interactionwithguests, otherdetails)
+            VALUES (?,?,?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    listingdescription,
+                    yourproperty,
+                    guestaccessdetails,
+                    interactionwithguests,
+                    otherdetails
+                ];
+            }
         }
-        else if (type == "bathroomsareavailabletoguests") {
-            updateQuery = `UPDATE properties SET bathrooms=?, attached_bathrooms=?, dedicated_bathrooms=?, shard_bathrooms=? WHERE property_id=?`;
-            updateValue = [
-                parseInt(data.bathroomsareavailabletoguests.privateandatteched) +
-                parseInt(data.bathroomsareavailabletoguests.dedicated) +
-                parseInt(data.bathroomsareavailabletoguests.shared),
-                data.bathroomsareavailabletoguests.privateandatteched,
-                data.bathroomsareavailabletoguests.dedicated,
-                data.bathroomsareavailabletoguests.shared,
-                propertyId
-            ];
-        }
-        else if (type == "elsemightbethere") {
-            updateQuery = `UPDATE properties SET other_people=? WHERE property_id=?`;
-            updateValue = [data.elsemightbethere.type, propertyId];
-        }
-        else if (type == "apartmenttitle") {
-            updateQuery = `UPDATE properties SET title=? WHERE property_id=?`;
-            updateValue = [data.apartmenttitle.title, propertyId];
-        }
-        else if (type == "apartmentdescription") {
-            updateQuery = `UPDATE properties SET description=? WHERE property_id=?`;
-            updateValue = [data.apartmentdescription.description, propertyId];
-        }
-        else if (type == "pickyourbookingsetting") {
-            updateQuery = `UPDATE property_booking_settings SET approve5booking=?, instantbook=? WHERE property_id=?`;
-            updateValue = [
-                data.pickyourbookingsetting.approve5booking,
-                data.pickyourbookingsetting.instantbook,
-                propertyId
-            ];
-        }
-        else if (type == "weekdaybaseprice") {
-            updateQuery = `UPDATE properties SET weekday_price=? WHERE property_id=?`;
-            updateValue = [data.weekdaybaseprice.price, propertyId];
-        }
-        else if (type == "weekendprice") {
-            updateQuery = `UPDATE properties SET weekend_price=? WHERE property_id=?`;
-            updateValue = [data.weekendprice.price, propertyId];
-        }
-        else if (type == "discount") {
-            updateQuery = `UPDATE property_discounts 
-                           SET newlistingpromotion=?, lastminutediscount=?, weeklydiscount=?, monthlydiscount=? 
-                           WHERE property_id=?`;
-            updateValue = [
-                data.discount.newlistingpromotion,
-                data.discount.lastminutediscount,
-                data.discount.weeklydiscount,
-                data.discount.monthlydiscount,
-                propertyId
-            ];
-        }
-        else if (type == "residentailaddress") {
-            updateQuery = `UPDATE host_addresses 
-                           SET flat=?,street_address=?, city=?, state_province=?, zip_code=?, country=?, landmark=?, district=? 
-                           WHERE host_id=?`;
-            updateValue = [
-                data.residentailaddress.flat,
-                data.residentailaddress.streetaddress,
-                data.residentailaddress.city,
-                data.residentailaddress.state,
-                data.residentailaddress.pincode,
-                data.residentailaddress.country,
-                data.residentailaddress.landmark,
-                data.residentailaddress.district,
-                hostId
-            ];
-        }
+
 
         // ✅ Pending Parts
         else if (type == "placePhotos") {
@@ -446,19 +1100,211 @@ router.post('/edit-property', async (req, res) => {
             }
         }
 
-        else if (type == "placehastooffer" || type == "describeyourapartment" || type == "safetydetails") {
-            await db.promise().query(`DELETE FROM property_amenities WHERE property_id=?`, [propertyId]);
-            const items = Object.keys(data[type]).filter(k => data[type][k] == '1');
-            for (const item of items) {
-                const [rows] = await db.promise().query(`SELECT amenity_id FROM amenities WHERE value=?`, [item]);
-                if (rows.length) {
-                    await db.promise().query(
-                        `INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)`,
-                        [propertyId, rows[0].amenity_id]
-                    );
-                }
+        else if (type == "houserules") {
+
+            let rules = data.houserules;
+
+            let no_pets = rules.petsallowed == "1" ? 0 : 1;
+            let no_smoking = rules.smokingallowed == "1" ? 0 : 1;
+            let no_parties = rules.eventsallowed == "1" ? 0 : 1;
+            let no_children = rules.quiethours == "1" ? 1 : 0;
+
+            let check_in_time = rules.checkincheckouttimes == "1" ? "default" : null;
+            let check_out_time = rules.checkincheckouttimes == "1" ? "default" : null;
+
+            let other_rules = rules.additionalrules || null;
+
+            // check if exists
+            let [check] = await db.promise().query(
+                "SELECT rule_id FROM house_rules WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE house_rules SET
+                no_pets = ?,
+                no_smoking = ?,
+                no_parties = ?,
+                no_children = ?,
+                check_in_time = ?,
+                check_out_time = ?,
+                other_rules = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    no_pets,
+                    no_smoking,
+                    no_parties,
+                    no_children,
+                    check_in_time,
+                    check_out_time,
+                    other_rules,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO house_rules
+            (property_id, no_pets, no_smoking, no_parties, no_children,
+             check_in_time, check_out_time, other_rules)
+            VALUES (?,?,?,?,?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    no_pets,
+                    no_smoking,
+                    no_parties,
+                    no_children,
+                    check_in_time,
+                    check_out_time,
+                    other_rules
+                ];
             }
         }
+        else if (type == "cancellationpolicy") {
+
+            let pol = data.cancellationpolicy;
+
+            let standardpolicy = pol.standardpolicy || null;
+            let longtermstaypolicy = pol.longtermstaypolicy || null;
+
+            // Check if exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_cancellation_policy WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE property_cancellation_policy SET
+                standardpolicy = ?,
+                longtermstaypolicy = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    standardpolicy,
+                    longtermstaypolicy,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO property_cancellation_policy
+            (property_id, standardpolicy, longtermstaypolicy)
+            VALUES (?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    standardpolicy,
+                    longtermstaypolicy
+                ];
+            }
+        }
+        else if (type == "checkin") {
+
+            let checkin = data.checkin;
+
+            let starttime = checkin.starttime || null;
+            let endtime = checkin.endtime || null;
+            let checkouttime = checkin.checkouttime || null;
+
+            // Check if record exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_checkin WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE property_checkin SET
+                starttime = ?,
+                endtime = ?,
+                checkouttime = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    starttime,
+                    endtime,
+                    checkouttime,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO property_checkin
+            (property_id, starttime, endtime, checkouttime)
+            VALUES (?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    starttime,
+                    endtime,
+                    checkouttime
+                ];
+            }
+        }
+        else if (type == "checkout") {
+
+            let checkout = data.checkout;
+
+            let starttime = checkout.starttime || null;
+            let endtime = checkout.endtime || null;
+            let checkouttime = checkout.checkouttime || null;
+
+            // Check if record exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_checkout WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE property_checkout SET
+                starttime = ?,
+                endtime = ?,
+                checkouttime = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    starttime,
+                    endtime,
+                    checkouttime,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO property_checkout
+            (property_id, starttime, endtime, checkouttime)
+            VALUES (?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    starttime,
+                    endtime,
+                    checkouttime
+                ];
+            }
+        }
+
+
 
         if (updateQuery) {
             await db.promise().query(updateQuery, updateValue);
@@ -470,7 +1316,6 @@ router.post('/edit-property', async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
 
 
 // view property
@@ -696,6 +1541,7 @@ router.get('/viewPropertyList', async (req, res) => {
     if (!hostId) {
         return res.status(400).json({ status: false, message: "Host not found, please re-login" });
     }
+    console.log(hostId)
 
     try {
         let query = `SELECT p.property_id, p.title, p.status, pi.image_url, pa.street_address, pa.city, 
@@ -727,7 +1573,7 @@ router.get('/viewPropertyList', async (req, res) => {
                 groupedData.inprocess.push(p);
             }
         });
-
+        console.log("groupedData", groupedData)
         return res.status(200).json({
             status: true,
             message: "Property fetched successfully",

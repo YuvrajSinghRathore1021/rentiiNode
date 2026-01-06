@@ -5,29 +5,15 @@ const upload = require('../../middleware/upload');
 const jwt = require('jsonwebtoken');
 
 
-// host_profiles=SELECT `host_id`, `user_id`, `headline`, `bio`, `language_spoken`, `response_time`, `host_since`, `govt_id_verified`, `profile_complete`, `status`, `created_at` FROM `host_profiles` WHERE 1
-
-// host_addresses=SELECT `address_id`, `user_id`, `country`, `state`, `city`, `zip_code`, `full_address`, `latitude`, `longitude` FROM `host_addresses` WHERE 1
-
-
-// host_verifications=SELECT `id`, `user_id`, `document_type`, `document_url`, `verified`, `verified_by_admin`, `submitted_at`, `verified_at` FROM `host_verifications` WHERE 1
-
-
-router.post('/test', (req, res) => {
-    res.status(200).json({ status: true, data: '', message: 'service is running' });
-});
-
-
-
 // host_profiles
 
 router.get("/hostProfiles", async (req, res) => {
     const userId = req.user.user_id;
-    const { page = 1, limit = 10, search = "", status = "" } = req.query;
+    const { page = 1, limit = 10, search = "", status = "", type = 1 } = req.query;
 
     try {
-        let query = "SELECT * FROM host_profiles WHERE 1=1";
-        const queryParams = [];
+        let query = "SELECT * FROM host_profiles WHERE type=?";
+        const queryParams = [type];
 
         if (status) {
             query += " AND status = ?";
@@ -47,8 +33,8 @@ router.get("/hostProfiles", async (req, res) => {
             return res.status(200).json({ status: false, message: "No profiles found" });
         }
 
-        let queryCount = "SELECT COUNT(host_id) as total FROM host_profiles WHERE 1=1";
-        let countParams = [];
+        let queryCount = "SELECT COUNT(host_id) as total FROM host_profiles WHERE type=?";
+        let countParams = [type];
         if (search) {
             queryCount += " AND (headline LIKE ? OR bio LIKE ?)";
             countParams.push(`%${search}%`, `%${search}%`);
@@ -67,7 +53,6 @@ router.get("/hostProfiles", async (req, res) => {
 router.post("/toggle-host-status", async (req, res) => {
     const userId = req.user.user_id;
     const { status, id } = req.body;
-
     try {
         let query = '';
         let data = [];
@@ -232,7 +217,7 @@ router.post("/update-host-profile", async (req, res) => {
     const { host_id, headline, bio, language_spoken, response_time, host_since, govt_id_verified, profile_complete } = req.body;
 
     try {
-        const query = "UPDATE host_profiles SET headline = ?, bio = ?, language_spoken = ?, response_time = ?, host_since = ?, govt_id_verified = ?, profile_complete = ?, updated_at = NOW() WHERE host_id = ?";
+        const query = "UPDATE host_profiles SET headline = ?, bio = ?, language_spoken = ?, response_time = ?, host_since = ?, govt_id_verified = ?, profile_complete = ? WHERE host_id = ?";
         const data = [headline, bio, language_spoken, response_time, host_since, govt_id_verified, profile_complete, host_id];
 
         await db.promise().query(query, data);
@@ -244,8 +229,123 @@ router.post("/update-host-profile", async (req, res) => {
 });
 
 
-// Route to get user data
 
+
+// add host address
+router.post("/addHostAddress", async (req, res) => {
+    const userId = req.user.user_id;
+    const { country, state, city, zip_code, full_address, latitude, longitude } = req.body;
+
+    try {
+        const query = "INSERT INTO host_addresses (user_id, country, state, city, zip_code, full_address, latitude, longitude, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+        const data = [userId, country, state, city, zip_code, full_address, latitude, longitude];
+
+        await db.promise().query(query, data);
+        res.json({ status: true, message: "Host address added successfully" });
+    } catch (err) {
+        console.error("Add host address error:", err);
+        res.status(500).json({ status: false, message: "Server error" });
+    }
+});
+
+// make host 
+
+
+router.post("/makeHost", async (req, res) => {
+    const userId = req.user.user_id;
+    const { host_name } = req.body;
+    try {
+        // CHECK IF USER IS ALREADY HOST
+        const existingHost = await db.promise().query("SELECT * FROM host_profiles WHERE user_id = ?", [userId]);
+        if (existingHost[0].length > 0) {
+            return res.status(200).json({ status: false, message: "User is already a host." });
+        }
+
+        const query = "INSERT INTO host_profiles (user_id, host_name, created_at) VALUES (?, ?, NOW())";
+        const data = [userId, host_name];
+
+        await db.promise().query(query, data);
+        // lastInsertId UPDATE IN USER TABLE
+        let lastInsertId = await db.promise().query("SELECT LAST_INSERT_ID() as host_id");
+        const hostId = lastInsertId[0][0].host_id;
+        await db.promise().query("UPDATE users SET host_id = ? WHERE user_id = ?",
+            [hostId, userId]
+        );
+        // MAKE NEW TOKEN 
+        const user = await db.promise().query("SELECT * FROM users WHERE user_id = ?", [userId]);
+
+        const token = jwt.sign(
+            {
+                user_id: user[0][0].user_id,
+                name: user[0][0].name,
+                email: user[0][0].email,
+                dob: user[0][0].dob,
+                phone_number: user[0][0].phone_number,
+                about: user[0][0].about,
+                host_id: user[0][0].host_id,
+                is_host: user[0][0].is_host,
+                is_verified_email: user[0][0].is_verified_email,
+                status: user[0][0].status
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '4300h' } // 500 days
+        );
+
+        // send token in response
+        res.json({ status: true, message: "Host profile created successfully", token: token });
+
+    } catch (err) {
+        console.error("Make host error:", err);
+        res.status(500).json({ status: false, message: "Server error" });
+    }
+});
+
+router.post("/addBroker", async (req, res) => {
+    const { type, profile, host_name, email, phone_number, headline, bio, language_spoken, profile_complete, status } = req.body;
+    try {
+        const query = "INSERT INTO host_profiles (type, profile, host_name, email, phone_number, headline, bio, language_spoken,profile_complete, status ) VALUES (?,?,?,?,?,?,?,?,?,?)";
+        const data = [type, profile, host_name, email, phone_number, headline, bio, language_spoken, profile_complete, status];
+
+        await db.promise().query(query, data);
+        // send token in response
+        res.json({ status: true, message: "Profile created successfully" });
+    } catch (err) {
+        console.error("Make host error:", err);
+        res.status(500).json({ status: false, message: "Server error" });
+    }
+});
+
+// host_verifications
+
+router.post("/addHostVerification", upload.single("document"), async (req, res) => {
+    const userId = req.user.user_id;
+    const document_type = req.body.document_type;
+
+    if (!req.file) {
+        return res.status(400).json({ status: false, message: "No document uploaded" });
+    }
+
+    const document_url = "/uploads/documents/" + userId + "/" + req.file.filename;
+
+    try {
+        const query = `
+            INSERT INTO host_verifications 
+            (user_id, document_type, document_url, submitted_at) 
+            VALUES (?, ?, ?, NOW())`;
+        const data = [userId, document_type, document_url];
+
+        await db.promise().query(query, data);
+        res.json({ status: true, message: "Host verification added successfully" });
+    } catch (err) {
+        console.error("Add host verification error:", err);
+        res.status(500).json({ status: false, message: "Server error" });
+    }
+});
+
+
+
+
+// Route to get user data
 router.get("/getUserData", async (req, res) => {
     const userId = req.user.user_id;
     const { page = 1, limit = 10, search = "", status = "" } = req.query;
@@ -288,101 +388,19 @@ router.get("/getUserData", async (req, res) => {
 });
 
 
-// add host address
-router.post("/addHostAddress", async (req, res) => {
-    const userId = req.user.user_id;
-    const { country, state, city, zip_code, full_address, latitude, longitude } = req.body;
+
+
+// host check 
+router.post("/checkHost", async (req, res) => {
+    const user = req.user;
 
     try {
-        const query = "INSERT INTO host_addresses (user_id, country, state, city, zip_code, full_address, latitude, longitude, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-        const data = [userId, country, state, city, zip_code, full_address, latitude, longitude];
-
-        await db.promise().query(query, data);
-        res.json({ status: true, message: "Host address added successfully" });
-    } catch (err) {
-        console.error("Add host address error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
-    }
-});
-
-// make host 
-
-
-router.post("/makeHost", async (req, res) => {
-    const userId = req.user.user_id;
-    const { host_name } = req.body;
-    try {
-        // CHECK IF USER IS ALREADY HOST
-        const existingHost = await db.promise().query("SELECT * FROM host_profiles WHERE user_id = ?", [userId]);
-        if (existingHost[0].length > 0) {
-            return res.status(400).json({ status: false, message: "User is already a host." });
-        }
-
-        const query = "INSERT INTO host_profiles (user_id, host_name, created_at) VALUES (?, ?, NOW())";
-        const data = [userId, host_name];
-
-        await db.promise().query(query, data);
-        // lastInsertId UPDATE IN USER TABLE
-        let lastInsertId = await db.promise().query("SELECT LAST_INSERT_ID() as host_id");
-        const hostId = lastInsertId[0][0].host_id;
-        await db.promise().query("UPDATE users SET host_id = ? WHERE user_id = ?",
-            [hostId, userId]
-        );
-        // MAKE NEW TOKEN 
-        const user = await db.promise().query("SELECT * FROM users WHERE user_id = ?", [userId]);
-
-        const token = jwt.sign(
-            {
-                user_id: user[0][0].user_id,
-                name: user[0][0].name,
-                email: user[0][0].email,
-                dob: user[0][0].dob,
-                phone_number: user[0][0].phone_number,
-                about: user[0][0].about,
-                host_id: user[0][0].host_id,
-                is_host: user[0][0].is_host,
-                is_verified_email: user[0][0].is_verified_email,
-                status: user[0][0].status
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '4300h' } // 500 days
-        );
-
         // send token in response
-        res.json({ status: true, message: "Host profile created successfully", token: token });
-
+        res.json({ status: true, message: "Host profile checked successfully", data: user });
     } catch (err) {
-        console.error("Make host error:", err);
+        console.error("check host error:", err);
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
-// host_verifications
-
-router.post("/addHostVerification", upload.single("document"), async (req, res) => {
-    const userId = req.user.user_id;
-    const document_type = req.body.document_type;
-
-    if (!req.file) {
-        return res.status(400).json({ status: false, message: "No document uploaded" });
-    }
-
-    const document_url = "/uploads/documents/" + userId + "/" + req.file.filename;
-
-    try {
-        const query = `
-            INSERT INTO host_verifications 
-            (user_id, document_type, document_url, submitted_at) 
-            VALUES (?, ?, ?, NOW())`;
-        const data = [userId, document_type, document_url];
-
-        await db.promise().query(query, data);
-        res.json({ status: true, message: "Host verification added successfully" });
-    } catch (err) {
-        console.error("Add host verification error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
-    }
-});
-
 // Export the router
 module.exports = router;    

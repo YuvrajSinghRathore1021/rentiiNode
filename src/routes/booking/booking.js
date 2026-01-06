@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
-// const db = require('../../../db/dbSql');
 const db = require('../../../db/ConnectionSql');
-const dbn = require('../../../db/db');
 
 //// user book property 
 
@@ -73,11 +71,13 @@ router.post("/book", async (req, res) => {
             totalPrice += price;
         }
 
+
+
         // 4. Insert booking (pending confirmation until payment)
         const [result] = await db.promise().query(
             `INSERT INTO bookings 
-             (property_id, guest_id, check_in_date, check_out_date, check_in_time, check_out_time, guests_count, total_price, status, payment_status) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending')`,
+             (property_id, guest_id, check_in_date, check_out_date, check_in_time, check_out_time, guests_count, total_price, status) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, '0')`,
             [propertyId, userId, checkInDate, checkOutDate, checkInTime ?? null, checkOutTime ?? null, guestsCount ?? 1, totalPrice]
         );
 
@@ -195,6 +195,79 @@ router.post("/calculate", async (req, res) => {
 
 
 /////// Get booking details ///////
+router.get('/bookingsDetails', async (req, res) => {
+
+    const { page = 1, limit = 10, search = "", status = "" } = req.query;
+
+    try {
+        let query = `
+            SELECT b.booking_id, b.property_id, b.check_in_date, b.check_out_date, 
+                   b.total_price, b.status, b.guests_count, b.created_at, 
+                   p.title AS property_title, p.description AS property_description,
+                   pa.street_address, pa.city, pa.state_province, pa.postal_code, pa.country, u.name as user_name
+            
+               FROM bookings b
+            JOIN properties p ON b.property_id = p.property_id
+            JOIN users u on u.user_id = b.guest_id
+            left JOIN property_addresses pa ON p.address_id = pa.address_id
+            WHERE 1=1 `;
+
+        const queryParams = [];
+
+        if (status) {
+            query += " AND b.status = ?";
+            queryParams.push(status);
+        }
+        if (search) {
+            query += " AND (p.title LIKE ? OR p.description LIKE ?)";
+            const searchPattern = `%${search}%`;
+            queryParams.push(searchPattern, searchPattern);
+        }
+
+        query += " ORDER BY b.created_at DESC LIMIT ? OFFSET ?";
+        queryParams.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
+
+        console.log(query);
+        console.log(queryParams);
+
+        const [bookings] = await db.promise().query(query, queryParams);
+
+        if (bookings.length === 0) {
+            return res.status(200).json({ status: false, message: "No bookings found" });
+        }
+
+        let countQuery = `
+            SELECT COUNT(b.booking_id) as total
+            FROM bookings b
+            JOIN properties p ON b.property_id = p.property_id
+            WHERE 1=1 `;
+
+        let countParams = [];
+
+        if (status) {
+            countQuery += " AND b.status = ?";
+            countParams.push(status);
+        }
+        if (search) {
+            countQuery += " AND (p.title LIKE ? OR p.description LIKE ?)";
+            const searchPattern = `%${search}%`;
+            countParams.push(searchPattern, searchPattern);
+        }
+
+        const [countResult] = await db.promise().query(countQuery, countParams);
+        res.json({
+            status: true,
+            data: bookings,
+            total: countResult[0].total,
+            page: parseInt(page),
+            limit: parseInt(limit)
+        });
+    } catch (err) {
+        console.error("Get host bookings error:", err);
+        res.status(500).json({ status: false, message: "Server error" });
+    }
+});
+
 
 
 // Export the router

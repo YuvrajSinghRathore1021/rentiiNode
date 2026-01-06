@@ -94,14 +94,11 @@
 //         const result = await getProfileDetails(payload);
 //         socket.emit("profileResponse", result);
 //     });
-
-
 //     socket.on("disconnect", () => {
-
 //     });
 // });
-
 // module.exports = server;
+
 
 
 
@@ -114,7 +111,6 @@ const { getProfileDetails } = require('./helpers/getProfileDetails');
 const routes = require('./routes');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('./config/constants');
-
 
 const app = express();
 const server = http.createServer(app);
@@ -144,11 +140,6 @@ app.use('/api', routes);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ////✅ Socket.IO Events
-
-
-
-
-
 io.on("connection", (socket) => {
     try {
         // 🔹 Extract and verify token

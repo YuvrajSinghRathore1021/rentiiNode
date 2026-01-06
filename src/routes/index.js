@@ -5,8 +5,8 @@ const homeRoutes = require('./homeRoutes');
 const profile = require('./profile');
 const loginRoutes = require('./login');
 const upload = require('./upload-profile');
+const uploaddata=require('./uploadFunclity/upload');
 const DataGet = require('./dataget');
-const notification = require('../notification/notification');
 const propertyRoutes = require('./property');
 // // on-bording 
 const propartybording = require('./bording/propartybording');
@@ -14,6 +14,7 @@ const host = require('./bording/host');
 
 // // property user
 const propartyuser = require('./bording/propartyuser');
+const razorpay = require('./payment/razorpay');
 
 // Profile
 const Profile = require('./profile/Profile');
@@ -28,18 +29,18 @@ const Booking = require('./booking/booking');
 router.use('/home', homeRoutes);
 router.use('/profile', authenticateToken, profile);
 router.use('/upload', authenticateToken, upload);
+router.use('/uploadFile',  uploaddata);//authenticateToken
 router.use('/data', authenticateToken, DataGet);
 router.use('/property', authenticateToken, propertyRoutes);
 
-// // notification.js
 // // router.use('/property', authenticateToken, propertyRoutes);
-router.use('/notification', authenticateToken, notification);
-router.use("/user", loginRoutes);
 
+router.use("/user", loginRoutes);
 router.use('/onBording', authenticateToken, propartybording);
 router.use('/host', authenticateToken, host);
+// router.use('/userProparty',  propartyuser);
 router.use('/userProparty', authenticateToken, propartyuser);
-
+router.use('/razorpay', authenticateToken, razorpay);
 router.use('/profile', authenticateToken, Profile);
 router.use('/calendarManagement', authenticateToken, Calendar);
 router.use('/booking', authenticateToken, Booking);

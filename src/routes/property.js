@@ -82,7 +82,6 @@ router.post("/toggleStatus", async (req, res) => {
     }
 });
 
-
 router.post("/create", async (req, res) => {
     const userId = req.user.user_id;
     const { title, description, property_type, room_type, max_guests, bedrooms, beds, bathrooms, price_per_night, cleaning_fee, latitude, longitude } = req.body;
@@ -255,7 +254,7 @@ router.post("/favourites/add", async (req, res) => {
 
 router.get('/favourites', async (req, res) => {
     const userId = req.user.user_id;
-    console.log("userId", userId);
+    
     const { page = 1, limit = 10, search = "", sortBy = "price_per_night", sortOrder = "asc", latitude, longitude, radius = 5 } = req.query;
 
     try {

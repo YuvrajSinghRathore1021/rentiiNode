@@ -7,7 +7,7 @@ router.get("/get", async (req, res) => {
     const { page = 1, limit = 10, search = "", status = "" } = req.query;
 
     try {
-        let query = "SELECT user_id, name, email, phone_number, profile_picture_url, about,status FROM users WHERE 1=1";
+        let query = "SELECT user_id, name, email, phone_number, profile_picture_url, about,status FROM users WHERE 1=1 ";
         const queryParams = [];
 
         if (status) {
@@ -63,6 +63,8 @@ router.post("/toggle-status", async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
+
+
 
 
 // Export the router

@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
-// const db = require('../../../db/dbSql');
 const db = require('../../../db/ConnectionSql');
-const dbn = require('../../../db/db');
 
 
 // Get all bookings for a host with property details
