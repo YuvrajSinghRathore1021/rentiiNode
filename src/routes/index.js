@@ -24,6 +24,7 @@ const Calendar = require('./calendarmanagement/Calendar');
 
 /////// booking
 const Booking = require('./booking/booking');
+const Document = require('./document/document');
 
 //////---------url routes ---------//////
 router.use('/home', homeRoutes);
@@ -44,5 +45,6 @@ router.use('/razorpay', authenticateToken, razorpay);
 router.use('/profile', authenticateToken, Profile);
 router.use('/calendarManagement', authenticateToken, Calendar);
 router.use('/booking', authenticateToken, Booking);
+router.use('/document', authenticateToken, Document);
 
 module.exports = router;
