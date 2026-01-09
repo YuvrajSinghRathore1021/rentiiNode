@@ -7,16 +7,15 @@ const db = require('../../../db/ConnectionSql');
 
 /** * Upload document */
 router.post("/documentUpload", async (req, res) => {
-    const userId = req.user?.user_id;
-    const { property_id, title, description, file_path, status = "active" } = req.body;
 
+    const { property_id, title, description, file_path, status = "active", user_id = 0 } = req.body;
+    const userId = user_id;
     if (!title || !file_path) {
         return res.status(400).json({
             status: false,
             message: "title and file_path are required"
         });
     }
-
     let type = "user";
     if (property_id > 0) {
         type = "property";
@@ -70,13 +69,10 @@ router.post("/documentUpload", async (req, res) => {
 
 
 router.get("/documentDetails", async (req, res) => {
-    const { page = 1, limit = 10, search = "", status = "" } = req.query;
+    const { page = 1, limit = 10, search = "", status = "", userId = 0, propertyId = 0 } = req.query;
 
     try {
-        let query = `
-            SELECT document_id, user_id, property_id, type, title,description, file_path, status, uploaded_at FROM documents WHERE is_deleted = 0
-        `;
-
+        let query = `SELECT document_id, user_id, property_id, type, title,description, file_path, status, uploaded_at FROM documents WHERE is_deleted = 0`;
         let queryParams = [];
 
         // Status filter
@@ -94,10 +90,7 @@ router.get("/documentDetails", async (req, res) => {
 
         // Pagination
         query += " ORDER BY uploaded_at DESC LIMIT ? OFFSET ?";
-        queryParams.push(
-            parseInt(limit),
-            (parseInt(page) - 1) * parseInt(limit)
-        );
+        queryParams.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
 
         const [documents] = await db.promise().query(query, queryParams);
 
@@ -109,12 +102,21 @@ router.get("/documentDetails", async (req, res) => {
             countQuery += " AND status = ?";
             countParams.push(status);
         }
+
+        if (userId) {
+            countQuery += " AND user_id = ?";
+            countParams.push(userId);
+        }
+
+        if (propertyId) {
+            countQuery += " AND property_id = ?";
+            countParams.push(propertyId);
+        }
         if (search) {
             countQuery += " AND (title LIKE ? OR description LIKE ?)";
             const searchPattern = `%${search}%`;
             countParams.push(searchPattern, searchPattern);
         }
-
         const [countResult] = await db.promise().query(countQuery, countParams);
 
         res.json({

@@ -211,23 +211,80 @@ router.post("/toggle-verification-status", async (req, res) => {
 
 
 // update 
-// update host_profiles
+// //update host_profiles
+
+// router.post("/update-host-profile", async (req, res) => {
+//     const userId = req.user.user_id;
+//     const { host_id, headline, bio, language_spoken, response_time, host_since, govt_id_verified, profile_complete } = req.body;
+
+//     try {
+//         const query = "UPDATE host_profiles SET headline = ?, bio = ?, language_spoken = ?, response_time = ?, host_since = ?, govt_id_verified = ?, profile_complete = ? WHERE host_id = ?";
+//         const data = [headline, bio, language_spoken, response_time, host_since, govt_id_verified, profile_complete, host_id];
+
+//         await db.promise().query(query, data);
+//         res.json({ status: true, message: "Host profile updated successfully" });
+//     } catch (err) {
+//         console.error("Update host profile error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
+
 router.post("/update-host-profile", async (req, res) => {
-    const userId = req.user.user_id;
-    const { host_id, headline, bio, language_spoken, response_time, host_since, govt_id_verified, profile_complete } = req.body;
+    const {
+        host_id,
+        headline,
+        bio,
+        language_spoken,
+        response_time,
+        host_since,
+        govt_id_verified,
+        profile_complete,
+        email,
+        phone_number,
+        profile,
+        status
+    } = req.body;
 
     try {
-        const query = "UPDATE host_profiles SET headline = ?, bio = ?, language_spoken = ?, response_time = ?, host_since = ?, govt_id_verified = ?, profile_complete = ? WHERE host_id = ?";
-        const data = [headline, bio, language_spoken, response_time, host_since, govt_id_verified, profile_complete, host_id];
+        const query = `
+            UPDATE host_profiles SET
+                headline = ?,
+                bio = ?,
+                language_spoken = ?,
+                response_time = ?,
+                host_since = ?,
+                govt_id_verified = ?,
+                profile_complete = ?,
+                email = ?,
+                phone_number = ?,
+                profile = ?,
+                status = ?
+            WHERE host_id = ?
+        `;
+
+        const data = [
+            headline,
+            bio,
+            language_spoken,
+            response_time,
+            host_since,
+            govt_id_verified,
+            profile_complete,
+            email,
+            phone_number,
+            profile,
+            status,
+            host_id
+        ];
 
         await db.promise().query(query, data);
+
         res.json({ status: true, message: "Host profile updated successfully" });
     } catch (err) {
-        console.error("Update host profile error:", err);
+        console.error(err);
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
 
 
 
