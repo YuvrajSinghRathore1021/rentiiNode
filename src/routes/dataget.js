@@ -65,6 +65,31 @@ router.post("/toggle-status", async (req, res) => {
 });
 
 
+// dashboard 
+
+router.get("/metrics", async (req, res) => {
+  try {
+    // example queries (change table names as per your DB)
+   
+    const [bookings] = await db.promise().query( `SELECT COUNT(*) AS total_bookings FROM bookings`);
+    const [users] = await db.promise().query(`SELECT COUNT(*) AS total_users FROM users`);
+
+
+    res.json({
+      status: true,
+      data: {
+        users: users[0]?.total_users || 0,
+        bookings: bookings[0]?.total_bookings || 0,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: false,
+      message: "Something went wrong",
+    });
+  }
+});
 
 
 // Export the router

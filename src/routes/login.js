@@ -8,7 +8,7 @@ const e = require('express');
 
 
 router.post('/login', async (req, res) => {
-  const { email } = req.body;
+  const { email, type = "user" } = req.body;
   // Check if user exists
   let user = {};
   let userType = "login";

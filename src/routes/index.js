@@ -5,7 +5,7 @@ const homeRoutes = require('./homeRoutes');
 const profile = require('./profile');
 const loginRoutes = require('./login');
 const upload = require('./upload-profile');
-const uploaddata=require('./uploadFunclity/upload');
+const uploaddata = require('./uploadFunclity/upload');
 const DataGet = require('./dataget');
 const propertyRoutes = require('./property');
 // // on-bording 
@@ -30,7 +30,7 @@ const Document = require('./document/document');
 router.use('/home', homeRoutes);
 router.use('/profile', authenticateToken, profile);
 router.use('/upload', authenticateToken, upload);
-router.use('/uploadFile',  uploaddata);//authenticateToken
+router.use('/uploadFile', uploaddata);//authenticateToken
 router.use('/data', authenticateToken, DataGet);
 router.use('/property', authenticateToken, propertyRoutes);
 
