@@ -357,22 +357,115 @@ router.post("/makeHost", async (req, res) => {
     }
 });
 
-router.post("/addBroker", async (req, res) => {
-    const { type, profile, host_name, email, phone_number, headline, bio, language_spoken, profile_complete, status } = req.body;
-    try {
-        const query = "INSERT INTO host_profiles (type, profile, host_name, email, phone_number, headline, bio, language_spoken,profile_complete, status ) VALUES (?,?,?,?,?,?,?,?,?,?)";
-        const data = [type, profile, host_name, email, phone_number, headline, bio, language_spoken, profile_complete, status];
+// router.post("/addBroker", async (req, res) => {
+//     const { type, profile, host_name, email, phone_number, headline, bio, language_spoken, profile_complete, status } = req.body;
+//     try {
+//         const query = "INSERT INTO host_profiles (type, profile, host_name, email, phone_number, headline, bio, language_spoken,profile_complete, status ) VALUES (?,?,?,?,?,?,?,?,?,?)";
+//         const data = [type, profile, host_name, email, phone_number, headline, bio, language_spoken, profile_complete, status];
 
-        await db.promise().query(query, data);
-        // send token in response
-        res.json({ status: true, message: "Profile created successfully" });
+//         await db.promise().query(query, data);
+//         // send token in response
+//         res.json({ status: true, message: "Profile created successfully" });
+//     } catch (err) {
+//         console.error("Make host error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
+
+// host_verifications
+
+router.post("/addBroker", async (req, res) => {
+    const {
+        type,
+        profile,
+        host_name,
+        email,
+        phone_number,
+        headline,
+        bio,
+        language_spoken,
+        profile_complete,
+        status
+    } = req.body;
+
+    try {
+        /* ==========================
+           1️⃣ Insert Host Profile
+        =========================== */
+        const [hostResult] = await db.promise().query(
+            `INSERT INTO host_profiles 
+            (type, profile, host_name, email, phone_number, headline, bio, language_spoken, profile_complete, status)
+            VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            [
+                type,
+                profile,
+                host_name,
+                email,
+                phone_number,
+                headline,
+                bio,
+                language_spoken,
+                profile_complete,
+                status
+            ]
+        );
+
+        const host_id = hostResult.insertId;
+
+        /* ============ 2️⃣ Check User Exists =============== */
+        const [users] = await db.promise().query(
+            `SELECT user_id FROM users WHERE email = ? OR phone_number = ? LIMIT 1`,
+            [email, phone_number]
+        );
+
+        console.log("users:", users);
+
+        if (users.length > 0) {
+            /* ==========================
+               3️⃣ Update Existing User
+            =========================== */
+            await db.promise().query(
+                `UPDATE users 
+                 SET host_id = ?, is_host = 1, status = ?
+                 WHERE user_id = ?`,
+                [host_id, status, users[0].user_id]
+            );
+
+            return res.json({
+                status: true,
+                message: "Broker profile created successfully and user updated",
+                host_id
+            });
+
+        } else {
+            /* ==========================
+               4️⃣ Insert New User
+            =========================== */
+            await db.promise().query(
+                `INSERT INTO users 
+                (name, email, phone_number, host_id, is_host, status, created_at)
+                VALUES (?,?,?,?,?,?,NOW())`,
+                [host_name, email, phone_number, host_id, 1, status]
+            );
+
+            return res.json({
+                status: true,
+                message: "Broker profile created successfully and user inserted",
+                host_id
+            });
+        }
+
     } catch (err) {
-        console.error("Make host error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
+        console.error("Add broker error:", err.sqlMessage || err);
+        res.status(500).json({
+            status: false,
+            message: err.sqlMessage || "Server error"
+        });
     }
 });
 
-// host_verifications
+
+
 
 router.post("/addHostVerification", upload.single("document"), async (req, res) => {
     const userId = req.user.user_id;

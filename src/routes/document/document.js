@@ -9,7 +9,8 @@ const db = require('../../../db/ConnectionSql');
 router.post("/documentUpload", async (req, res) => {
 
     const { property_id, title, description, file_path, status = "active", user_id = 0 } = req.body;
-    const userId = user_id;
+    const userIdGEt = req.user.user_id;
+    const userId = user_id || userIdGEt;
     if (!title || !file_path) {
         return res.status(400).json({
             status: false,

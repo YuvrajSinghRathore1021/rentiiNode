@@ -12,7 +12,10 @@ router.post('/login', async (req, res) => {
   // Check if user exists
   let user = {};
   let userType = "login";
-  db.query('SELECT * FROM users WHERE email = ?', [email], async (err, results) => {
+  let query = `SELECT * FROM users WHERE email = ?`;
+  let queryValue = [email]
+ 
+  db.query(query, queryValue, async (err, results) => {
     if (err) {
       console.error('Login error:', err);
       return res.status(500).json({ status: false, message: 'Server error' });
