@@ -1,5 +1,11 @@
 const mysql = require('mysql2');
 
+const db = mysql.createConnection({
+    host: '72.60.219.1',
+    user: 'myuser',
+    password: 'StrongPass@#123',
+    database: 'mydb'
+});
 // const db = mysql.createConnection({
 //     host: '103.175.163.186',
 //     user: 'rentiinew',
@@ -7,12 +13,12 @@ const mysql = require('mysql2');
 //     database: 'rentiiNew'
 // });
 
-const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'rentalnew'
-});
+// const db = mysql.createConnection({
+//     host: 'localhost',
+//     user: 'root',
+//     password: '',
+//     database: 'rentalnew'
+// });
 
 db.connect(err => {
     if (err) {
@@ -21,6 +27,7 @@ db.connect(err => {
     }
     console.log('Connected to the MySQL database.');
 });
+
 // Export the connection
 module.exports = db;
 

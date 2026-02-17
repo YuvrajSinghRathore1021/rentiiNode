@@ -2,15 +2,17 @@
 const mysql = require('mysql2/promise');
 
 const dbn = mysql.createPool({
-    host: '103.175.163.186',
-    user: 'rentiinew',
-    password: 'rentii@id@123',
-    database: 'rentiiNew'
+    
+   host: '72.60.219.1',
+    user: 'myuser',
+    password: 'StrongPass@#123',
+    database: 'mydb'
 
     // host: 'localhost',
     // user: 'root',
     // password: '',
     // database: 'rentalnew'
+
 });
 
 
