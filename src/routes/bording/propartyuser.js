@@ -12,8 +12,19 @@ router.get('/getAllProperties', async (req, res) => {
         let query = `
             SELECT p.property_id, p.title, p.description, p.property_type, p.room_type, p.max_guests,
                    p.bedrooms, p.beds, p.bathrooms, p.price_per_night, pa.street_address, pa.city, p.latitude, p.longitude,p.weekday_price,p.weekend_price,
-                   pa.state_province, pa.postal_code, pa.country, GROUP_CONCAT(DISTINCT a.name) AS amenities,
-                   GROUP_CONCAT(DISTINCT pi.image_url) AS images
+                   pa.state_province, pa.postal_code, pa.country, 
+                   (
+            SELECT GROUP_CONCAT(DISTINCT a.name)
+            FROM property_amenities pa2
+            JOIN amenities a ON pa2.amenity_id = a.amenity_id
+            WHERE pa2.property_id = p.property_id
+        ) AS amenities,
+
+        (
+            SELECT GROUP_CONCAT(DISTINCT pi.image_url)
+            FROM property_images pi
+            WHERE pi.property_id = p.property_id
+        ) AS images
             FROM properties p
             LEFT JOIN property_addresses pa ON p.property_id = pa.property_id
             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
@@ -37,11 +48,10 @@ router.get('/getAllProperties', async (req, res) => {
             queryParams.push(parseInt(totalGuests));
         }
 
-        query += ` GROUP BY p.property_id ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`;
+        query += ` ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`;
+
         queryParams.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
-
         const [properties] = await db.promise().query(query, queryParams);
-
         if (properties.length === 0) {
             return res.status(200).json({ status: false, message: "No properties found" });
         }

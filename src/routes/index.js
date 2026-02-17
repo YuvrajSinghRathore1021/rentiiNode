@@ -30,16 +30,12 @@ const Document = require('./document/document');
 router.use('/home', homeRoutes);
 router.use('/profile', authenticateToken, profile);
 router.use('/upload', authenticateToken, upload);
-router.use('/uploadFile', uploaddata);//authenticateToken
+router.use('/uploadFile', uploaddata);
 router.use('/data', authenticateToken, DataGet);
 router.use('/property', authenticateToken, propertyRoutes);
-
-// // router.use('/property', authenticateToken, propertyRoutes);
-
 router.use("/user", loginRoutes);
 router.use('/onBording', authenticateToken, propartybording);
 router.use('/host', authenticateToken, host);
-// router.use('/userProparty',  propartyuser);
 router.use('/userProparty', authenticateToken, propartyuser);
 router.use('/razorpay', authenticateToken, razorpay);
 router.use('/profile', authenticateToken, Profile);

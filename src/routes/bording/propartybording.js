@@ -91,42 +91,120 @@ router.get('/properties', async (req, res) => {
     }
 });
 
-
 router.get('/host-properties', async (req, res) => {
-    const hostId = req.user.host_id;
+    const hostId = req.user?.host_id;
 
     if (!hostId) {
-        return res.status(400).json({ status: false, message: "Host ID is required" });
+        return res.status(400).json({
+            status: false,
+            message: "Host ID is required"
+        });
     }
 
     try {
         const query = `
-            SELECT p.property_id, p.title, p.description, p.property_type, p.room_type, 
-                   p.max_guests, p.bedrooms, p.beds, p.bathrooms, p.price_per_night, 
-                   p.cleaning_fee, pa.street_address, pa.city, pa.state_province, 
-                   pa.postal_code, pa.country,
-                   GROUP_CONCAT(DISTINCT a.name) AS amenities,
-                   pi.image_url
+            SELECT 
+                p.property_id,
+                p.title,
+                p.description,
+                p.property_type,
+                p.room_type,
+                p.max_guests,
+                p.bedrooms,
+                p.beds,
+                p.bathrooms,
+                p.price_per_night,
+                p.cleaning_fee,
+
+                pa.street_address,
+                pa.city,
+                pa.state_province,
+                pa.postal_code,
+                pa.country,
+
+                -- Amenities (No duplication issue)
+                (
+                    SELECT GROUP_CONCAT(DISTINCT a.name)
+                    FROM property_amenities pa2
+                    JOIN amenities a 
+                        ON pa2.amenity_id = a.amenity_id
+                    WHERE pa2.property_id = p.property_id
+                ) AS amenities,
+
+                -- Primary Image
+                (
+                    SELECT pi.image_url
+                    FROM property_images pi
+                    WHERE pi.property_id = p.property_id
+                    AND pi.is_primary = 1
+                    LIMIT 1
+                ) AS primary_image
+
             FROM properties p
-            JOIN property_addresses pa ON p.property_id = pa.property_id
-            LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
-            LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
-            LEFT JOIN property_images pi ON p.property_id = pi.property_id AND pi.is_primary = 1
+            JOIN property_addresses pa 
+                ON p.property_id = pa.property_id
             WHERE p.host_id = ?
-            GROUP BY p.property_id`;
+            ORDER BY p.property_id DESC
+        `;
 
         const [properties] = await db.promise().query(query, [hostId]);
 
-        if (properties.length === 0) {
-            return res.status(404).json({ status: false, message: "No properties found for this host" });
-        }
+        const formattedProperties = properties.map(p => ({
+            ...p,
+            amenities: p.amenities ? p.amenities.split(",") : []
+        }));
 
-        res.json({ status: true, data: properties });
+        return res.status(200).json({
+            status: true,
+            data: formattedProperties
+        });
+
     } catch (err) {
         console.error("Get host properties error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
+        return res.status(500).json({
+            status: false,
+            message: "Server error"
+        });
     }
 });
+
+
+
+// router.get('/host-properties', async (req, res) => {
+//     const hostId = req.user.host_id;
+
+//     if (!hostId) {
+//         return res.status(400).json({ status: false, message: "Host ID is required" });
+//     }
+
+//     try {
+//         const query = `
+//             SELECT p.property_id, p.title, p.description, p.property_type, p.room_type, 
+//                    p.max_guests, p.bedrooms, p.beds, p.bathrooms, p.price_per_night, 
+//                    p.cleaning_fee, pa.street_address, pa.city, pa.state_province, 
+//                    pa.postal_code, pa.country,
+//                    GROUP_CONCAT(DISTINCT a.name) AS amenities,
+//                    pi.image_url
+//             FROM properties p
+//             JOIN property_addresses pa ON p.property_id = pa.property_id
+//             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
+//             LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
+//             LEFT JOIN property_images pi ON p.property_id = pi.property_id AND pi.is_primary = 1
+//             WHERE p.host_id = ?
+//             GROUP BY p.property_id`;
+
+//         const [properties] = await db.promise().query(query, [hostId]);
+
+//         if (properties.length === 0) {
+//             return res.status(404).json({ status: false, message: "No properties found for this host" });
+//         }
+
+//         res.json({ status: true, data: properties });
+//     } catch (err) {
+//         console.error("Get host properties error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
 
 
 
@@ -154,7 +232,7 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
         console.log("add data=", data);
         let status = 0;
         let statusStr = req.body.status;
-        
+
         if (statusStr == "Approve") {
             status = 1;
         }
@@ -162,8 +240,8 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
         // 1. Insert into properties
         const [propertyResult] = await connection.query(`INSERT INTO properties  (host_id, title, description, property_type, 
             describe_apartment, other_people, room_type, max_guests, bedrooms,  bedroom_look, beds, bathrooms, attached_bathrooms, 
-            dedicated_bathrooms, shard_bathrooms,latitude, longitude, weekday_price, weekend_price, created_at,status,reservation_type)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?)
+            dedicated_bathrooms, shard_bathrooms,latitude, longitude, weekday_price, weekend_price, created_at,status,reservation_type,price_per_night)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?,?)
         `, [
             hostId,
             data.apartmenttitle?.title || "",
@@ -185,7 +263,8 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
             data.weekdaybaseprice?.price || 0,
             data.weekendprice?.price || 0,
             status || 0,
-            data?.reservationType || ""
+            data?.reservationType || "",
+            data.weekdaybaseprice?.price || 0
         ]);
 
         const propertyId = propertyResult.insertId;
@@ -305,8 +384,8 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
     } finally {
         connection.release();
     }
-});
-router.post('/add-propertyWeb',  async (req, res) => {
+}); 
+router.post('/add-propertyWeb', async (req, res) => {
     const connection = await dbn.getConnection();
     try {
         await connection.beginTransaction();
@@ -318,7 +397,7 @@ router.post('/add-propertyWeb',  async (req, res) => {
         console.log("add data=", data);
         let status = 0;
         let statusStr = req.body.status;
-        
+
         if (statusStr == "Approve") {
             status = 1;
         }
@@ -403,7 +482,7 @@ router.post('/add-propertyWeb',  async (req, res) => {
 
         if (data?.placesPhotos && data?.placesPhotos?.length) {
             for (let i = 0; i < data?.placesPhotos.length; i++) {
-                const imageUrl = `${data?.placesPhotos[i]}`; 
+                const imageUrl = `${data?.placesPhotos[i]}`;
                 await connection.query(`INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
                     [propertyId, imageUrl, i === 0 ? 1 : 0]);
             }
@@ -621,13 +700,13 @@ router.post("/edit-propertyWeb",
             // }
 
 
-              if (data?.placesPhotos && data?.placesPhotos?.length) {
-            for (let i = 0; i < data?.placesPhotos.length; i++) {
-                const imageUrl = `${data?.placesPhotos[i]}`; 
-                await connection.query(`INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
-                    [property_Id, imageUrl, i === 0 ? 1 : 0]);
+            if (data?.placesPhotos && data?.placesPhotos?.length) {
+                for (let i = 0; i < data?.placesPhotos.length; i++) {
+                    const imageUrl = `${data?.placesPhotos[i]}`;
+                    await connection.query(`INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
+                        [property_Id, imageUrl, i === 0 ? 1 : 0]);
+                }
             }
-        }
 
             /* =========================
                5. INSERT AMENITIES AGAIN
