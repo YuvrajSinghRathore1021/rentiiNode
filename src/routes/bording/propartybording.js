@@ -1620,15 +1620,12 @@ router.get('/viewPropertyList', async (req, res) => {
     if (!hostId) {
         return res.status(400).json({ status: false, message: "Host not found, please re-login" });
     }
-    console.log(hostId)
 
     try {
         let query = `SELECT p.property_id, p.title, p.status, pi.image_url, pa.street_address, pa.city, 
         pa.district,  pa.state_province,  pa.postal_code,  pa.country FROM properties p
-            LEFT JOIN property_images pi 
-                ON pi.property_id = p.property_id AND pi.is_primary = 1
-            LEFT JOIN property_addresses pa 
-                ON pa.property_id = p.property_id
+            LEFT JOIN property_images pi ON pi.property_id = p.property_id AND pi.is_primary = 1
+            LEFT JOIN property_addresses pa ON pa.property_id = p.property_id
             WHERE p.host_id = ?
             GROUP BY p.property_id
             ORDER BY p.property_id DESC
