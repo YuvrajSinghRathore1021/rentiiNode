@@ -37,7 +37,7 @@ router.use("/user", loginRoutes);
 router.use('/onBording', authenticateToken, propartybording);
 router.use('/host', authenticateToken, host);
 // router.use('/userProparty', authenticateToken, propartyuser);
-router.use('/userProparty',  propartyuser);
+router.use('/userProparty', propartyuser);
 router.use('/razorpay', authenticateToken, razorpay);
 router.use('/profile', authenticateToken, Profile);
 router.use('/calendarManagement', authenticateToken, Calendar);

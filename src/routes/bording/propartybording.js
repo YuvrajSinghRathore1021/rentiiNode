@@ -225,7 +225,48 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
     try {
         await connection.beginTransaction();
         const userId = req.user.user_id;
-        const hostId = req.user.host_id || 0;
+        let hostId = req.user.host_id || 0;
+
+        let finalHostId = hostId;
+
+        if (hostId == 0) {
+            // 1. Get user details
+            const [userData] = await connection.query(
+                `SELECT user_id, name, email, phone_number 
+         FROM users WHERE user_id=?`,
+                [userId]
+            );
+
+            if (!userData.length) {
+                throw new Error("User not found");
+            }
+
+            const user = userData[0];
+
+            // 2. Create host profile
+            const [hostResult] = await connection.query(`
+        INSERT INTO host_profiles
+        (user_id, host_name, email, phone_number, host_since, status, created_at)
+        VALUES (?, ?, ?, ?, NOW(), 1, NOW())
+    `, [
+                user.user_id,
+                user.name,
+                user.email,
+                user.phone_number
+            ]);
+
+            finalHostId = hostResult.insertId;
+            hostId = hostResult.insertId;
+
+            // 3. Update users table
+            await connection.query(`
+        UPDATE users 
+        SET host_id=?, is_host=1 
+        WHERE user_id=?
+    `, [finalHostId, userId]);
+        }
+
+
         // Parse `data` JSON
         const data = JSON.parse(req.body.data);
 
@@ -252,7 +293,7 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
             data.typeofplaceguesthave?.type || "",
             data.startwiththebasics?.peoplecanstay?.guests || "0",
             data.startwiththebasics?.peoplecanstay?.bedrooms || "0",
-            data.startwiththebasics?.havealock?.type || "",
+            data.startwiththebasics?.havealock?.type || 0,
             data.startwiththebasics?.peoplecanstay?.beds || "0",
             parseInt(data.bathroomsareavailabletoguests?.privateandatteched || 0) + parseInt(data.bathroomsareavailabletoguests?.dedicated || 0) + parseInt(data.bathroomsareavailabletoguests?.shared || 0),
             data.bathroomsareavailabletoguests?.privateandatteched || 0,
@@ -384,7 +425,199 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
     } finally {
         connection.release();
     }
-}); 
+});
+router.post('/edit-property', upload.array("placesPhotos", 10), async (req, res) => {
+    const connection = await dbn.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        const userId = req.user.user_id;
+        const hostId = req.user.host_id || 0;
+        const propertyId = req.body.property_Id;
+
+        if (!propertyId) {
+            throw new Error("Property ID required");
+        }
+
+        const data = JSON.parse(req.body.data);
+console.log(propertyId,"=edit=",data)
+        let status = 0;
+        if (req.body.status == "Approve") status = 1;
+
+        // ✅ 1. Update properties table
+        await connection.query(`
+            UPDATE properties SET
+                title=?,
+                description=?,
+                property_type=?,
+                describe_apartment=?,
+                other_people=?,
+                room_type=?,
+                max_guests=?,
+                bedrooms=?,
+                bedroom_look=?,
+                beds=?,
+                bathrooms=?,
+                attached_bathrooms=?,
+                dedicated_bathrooms=?,
+                shard_bathrooms=?,
+                latitude=?,
+                longitude=?,
+                weekday_price=?,
+                weekend_price=?,
+                status=?,
+                reservation_type=?,
+                price_per_night=?
+            WHERE property_id=? AND host_id=?
+        `, [
+            data.apartmenttitle?.title || "",
+            data.apartmentdescription?.description || "",
+            data.liketohost?.type || "",
+            data.describeyourplace?.type || "",
+            data.elsemightbethere?.type || "",
+            data.typeofplaceguesthave?.type || "",
+            data.startwiththebasics?.peoplecanstay?.guests || 0,
+            data.startwiththebasics?.peoplecanstay?.bedrooms || 0,
+            data.startwiththebasics?.havealock?.type || 0,
+            data.startwiththebasics?.peoplecanstay?.beds || 0,
+            parseInt(data.bathroomsareavailabletoguests?.privateandatteched || 0) +
+            parseInt(data.bathroomsareavailabletoguests?.dedicated || 0) +
+            parseInt(data.bathroomsareavailabletoguests?.shared || 0),
+            data.bathroomsareavailabletoguests?.privateandatteched || 0,
+            data.bathroomsareavailabletoguests?.dedicated || 0,
+            data.bathroomsareavailabletoguests?.shared || 0,
+            data.placelocated?.latitude || 0,
+            data.placelocated?.longitude || 0,
+            data.weekdaybaseprice?.price || 0,
+            data.weekendprice?.price || 0,
+            status,
+            data?.reservationType || "",
+            data.weekdaybaseprice?.price || 0,
+            propertyId,
+            hostId
+        ]);
+
+        // ✅ 2. Update property address
+        await connection.query(`
+            UPDATE property_addresses SET
+                street_address=?,
+                city=?,
+                district=?,
+                state_province=?,
+                postal_code=?,
+                country=?,
+                latitude=?,
+                longitude=?
+            WHERE property_id=?
+        `, [
+            data.placelocated?.streetaddress || "",
+            data.placelocated?.city || "",
+            data.placelocated?.district || "",
+            data.placelocated?.state || "",
+            data.placelocated?.pincode || "",
+            data.placelocated?.country || "",
+            data.placelocated?.latitude || "",
+            data.placelocated?.longitude || "",
+            propertyId
+        ]);
+
+        // ✅ 3. Update booking settings
+        await connection.query(`
+            UPDATE property_booking_settings SET
+                approve5booking=?,
+                instantbook=?
+            WHERE property_id=?
+        `, [
+            data.pickyourbookingsetting?.approve5booking || 0,
+            data.pickyourbookingsetting?.instantbook || 0,
+            propertyId
+        ]);
+
+        // ✅ 4. Update discounts
+        await connection.query(`
+            UPDATE property_discounts SET
+                newlistingpromotion=?,
+                lastminutediscount=?,
+                weeklydiscount=?,
+                monthlydiscount=?
+            WHERE property_id=?
+        `, [
+            data.discount?.newlistingpromotion || 0,
+            data.discount?.lastminutediscount || 0,
+            data.discount?.weeklydiscount || 0,
+            data.discount?.monthlydiscount || 0,
+            propertyId
+        ]);
+
+        // ✅ 5. Replace amenities (delete old → insert new)
+        await connection.query(`DELETE FROM property_amenities WHERE property_id=?`, [propertyId]);
+
+        const insertAmenities = async (amenityObj, key) => {
+            if (!amenityObj) return;
+
+            const amenities = Object.keys(amenityObj).filter(k => amenityObj[k] == '1');
+
+            for (const amenity of amenities) {
+                const [rows] = await connection.query(
+                    `SELECT amenity_id FROM amenities WHERE value=?`,
+                    [amenity]
+                );
+
+                if (rows.length) {
+                    await connection.query(
+                        `INSERT INTO property_amenities (property_id, amenity_id, data_key)
+                         VALUES (?,?,?)`,
+                        [propertyId, rows[0].amenity_id, key]
+                    );
+                }
+            }
+        };
+
+        await insertAmenities(data.placehastooffer, "placehastooffer");
+        await insertAmenities(data.describeyourapartment, "describeyourapartment");
+        await insertAmenities(data.safetydetails, "safetydetails");
+
+        // ✅ 6. Images update (optional)
+        if (req.files && req.files.length) {
+            await connection.query(`DELETE FROM property_images WHERE property_id=?`, [propertyId]);
+
+            for (let i = 0; i < req.files.length; i++) {
+                const imageUrl = `/uploads/images/${req.files[i].filename}`;
+
+                await connection.query(
+                    `INSERT INTO property_images (property_id, image_url, is_primary)
+                     VALUES (?,?,?)`,
+                    [propertyId, imageUrl, i === 0 ? 1 : 0]
+                );
+            }
+        }
+
+        await connection.commit();
+
+        res.json({
+            status: true,
+            message: "Property updated successfully",
+            propertyId
+        });
+
+    } catch (err) {
+        await connection.rollback();
+        console.error(err);
+
+        res.status(500).json({
+            status: false,
+            message: "Failed to update property"
+        });
+
+    } finally {
+        connection.release();
+    }
+});
+
+
+
+
 router.post('/add-propertyWeb', async (req, res) => {
     const connection = await dbn.getConnection();
     try {
@@ -1622,15 +1855,34 @@ router.get('/viewPropertyList', async (req, res) => {
     }
 
     try {
-        let query = `SELECT p.property_id, p.title, p.status, pi.image_url, pa.street_address, pa.city, 
-        pa.district,  pa.state_province,  pa.postal_code,  pa.country FROM properties p
-            LEFT JOIN property_images pi ON pi.property_id = p.property_id AND pi.is_primary = 1
-            LEFT JOIN property_addresses pa ON pa.property_id = p.property_id
-            WHERE p.host_id = ?
-            GROUP BY p.property_id
-            ORDER BY p.property_id DESC
-        `;
+        // let query = `SELECT p.property_id, p.title, p.status, pi.image_url, pa.street_address, pa.city, 
+        // pa.district,  pa.state_province,  pa.postal_code,  pa.country FROM properties p
+        //     LEFT JOIN property_images pi ON pi.property_id = p.property_id AND pi.is_primary = 1
+        //     LEFT JOIN property_addresses pa ON pa.property_id = p.property_id
+        //     WHERE p.host_id = ?
+        //     GROUP BY p.property_id
+        //     ORDER BY p.property_id DESC
+        // `;
 
+        let query = `SELECT 
+    p.property_id,
+    p.title,
+    p.status,
+    pi.image_url,
+    pa.street_address,
+    pa.city,
+    pa.district,
+    pa.state_province,
+    pa.postal_code,
+    pa.country
+FROM properties p
+LEFT JOIN property_images pi 
+    ON pi.property_id = p.property_id 
+    AND pi.is_primary = 1
+LEFT JOIN property_addresses pa 
+    ON pa.property_id = p.property_id
+WHERE p.host_id = ?
+ORDER BY p.property_id DESC;`
         const [properties] = await db.promise().query(query, [hostId]);
 
         // 🧩 Group properties by status

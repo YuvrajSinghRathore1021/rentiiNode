@@ -252,86 +252,260 @@ router.post("/favourites/add", async (req, res) => {
 
 });
 
-router.get('/favourites', async (req, res) => {
-    const userId = req.user.user_id;
-    
-    const { page = 1, limit = 10, search = "", sortBy = "price_per_night", sortOrder = "asc", latitude, longitude, radius = 5 } = req.query;
+// router.get('/favourites', async (req, res) => {
+//     const userId = req.user.user_id;
 
+//     const { page = 1, limit = 10, search = "", sortBy = "price_per_night", sortOrder = "asc", latitude, longitude, radius = 5 } = req.query;
+
+//     try {
+//         let query = `
+//             SELECT p.property_id, p.title,p.price_per_night, pa.street_address, pa.city, p.latitude, p.longitude,p.weekday_price,p.weekend_price,
+//                    pa.state_province, pa.postal_code, pa.country, GROUP_CONCAT(DISTINCT a.name) AS amenities,
+//                    GROUP_CONCAT(DISTINCT pi.image_url) AS images
+//             FROM properties p
+//             JOIN property_addresses pa ON p.property_id = pa.property_id
+//             inner Join favourites As fav ON fav.property_id = p.property_id AND fav.user_id = ?
+//             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
+//             LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
+//             LEFT JOIN property_images pi ON p.property_id = pi.property_id
+//             WHERE 1=1
+//         `;
+//         const queryParams = [userId];
+//         if (search) {
+//             query += " AND (p.title LIKE ? OR p.description LIKE ? OR pa.street_address LIKE ?)";
+//             const searchPattern = `%${search}%`;
+//             queryParams.push(searchPattern, searchPattern, searchPattern);
+//         }
+//         if (latitude && longitude) {
+//             query += ` AND ST_Distance_Sphere(
+//                         point(pa.longitude, pa.latitude),
+//                         point(?, ?)
+//                     ) <= ? * 1000`;
+//             queryParams.push(parseFloat(longitude), parseFloat(latitude), parseFloat(radius));
+//         }
+
+//         query += ` GROUP BY p.property_id ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`;
+//         queryParams.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
+
+//         const [properties] = await db.promise().query(query, queryParams);
+
+//         if (properties.length === 0) {
+//             return res.status(200).json({ status: false, message: "No properties found" });
+//         }
+
+//         let countQuery = `
+//             SELECT COUNT(DISTINCT p.property_id) as total
+//             FROM properties p
+//             JOIN property_addresses pa ON p.address_id = pa.address_id 
+//             inner Join favourites As fav ON fav.property_id = p.property_id AND fav.user_id = ?
+//             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
+//             LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
+//         `;
+
+//         if (search) {
+//             countQuery += " WHERE (p.title LIKE ? OR p.description LIKE ? OR pa.street_address LIKE ?)";
+//         } if (latitude && longitude) {
+//             countQuery += ` AND ST_Distance_Sphere(
+//                             point(pa.longitude, pa.latitude),
+//                             point(?, ?)
+//                         ) <= ? * 1000`;
+//             countParams.push(parseFloat(longitude), parseFloat(latitude), parseFloat(radius));
+//         }
+
+//         const [countResult] = await db.promise().query(countQuery, search ? [userId, searchPattern, searchPattern, searchPattern] : [userId]);
+//         const formattedProperties = await Promise.all(
+//             properties.map(async (p) => ({
+//                 ...p,
+//                 amenities: p.amenities ? p.amenities.split(",") : [],
+//                 images: p.images ? p.images.split(",") : [],
+//                 favourite: await favouriteCheck(userId, p.property_id)
+//             }))
+//         );
+
+//         res.json({
+//             status: true,
+//             data: formattedProperties,
+//             total: countResult[0].total,
+//             page: parseInt(page),
+//             limit: parseInt(limit)
+//         });
+//     } catch (err) {
+//         console.error("Get all properties error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
+router.get('/favourites', async (req, res) => {
     try {
+        const userId = req.user.user_id;
+
+        let {
+            page = 1,
+            limit = 10,
+            search = "",
+            sortBy = "price_per_night",
+            sortOrder = "asc",
+            latitude,
+            longitude,
+            radius = 5
+        } = req.query;
+
+        page = parseInt(page);
+        limit = parseInt(limit);
+
+        /* ---------- SAFE SORT ---------- */
+        const allowedSort = ["price_per_night", "title", "city"];
+        const allowedOrder = ["asc", "desc"];
+
+        const finalSortBy = allowedSort.includes(sortBy)
+            ? sortBy
+            : "price_per_night";
+
+        const finalSortOrder = allowedOrder.includes(sortOrder.toLowerCase())
+            ? sortOrder
+            : "asc";
+
+        /* ---------- MAIN QUERY ---------- */
         let query = `
-            SELECT p.property_id, p.title,p.price_per_night, pa.street_address, pa.city, p.latitude, p.longitude,p.weekday_price,p.weekend_price,
-                   pa.state_province, pa.postal_code, pa.country, GROUP_CONCAT(DISTINCT a.name) AS amenities,
-                   GROUP_CONCAT(DISTINCT pi.image_url) AS images
+            SELECT 
+                p.property_id,
+                p.title,
+                p.price_per_night,
+                pa.street_address,
+                pa.city,
+                p.latitude,
+                p.longitude,
+                p.weekday_price,
+                p.weekend_price,
+                pa.state_province,
+                pa.postal_code,
+                pa.country,
+
+                (
+                    SELECT GROUP_CONCAT(DISTINCT a.name SEPARATOR ', ')
+                    FROM property_amenities pa2
+                    JOIN amenities a 
+                        ON pa2.amenity_id = a.amenity_id
+                    WHERE pa2.property_id = p.property_id
+                ) AS amenities,
+
+                (
+                    SELECT GROUP_CONCAT(DISTINCT pi.image_url SEPARATOR ', ')
+                    FROM property_images pi
+                    WHERE pi.property_id = p.property_id
+                ) AS images
+
             FROM properties p
-            JOIN property_addresses pa ON p.property_id = pa.property_id
-            inner Join favourites As fav ON fav.property_id = p.property_id AND fav.user_id = ?
-            LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
-            LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
-            LEFT JOIN property_images pi ON p.property_id = pi.property_id
+            JOIN property_addresses pa 
+                ON p.property_id = pa.property_id
+            JOIN favourites fav 
+                ON fav.property_id = p.property_id
+                AND fav.user_id = ?
             WHERE 1=1
         `;
-        const queryParams = [userId];
+
+        const params = [userId];
+
+        /* ---------- SEARCH ---------- */
         if (search) {
-            query += " AND (p.title LIKE ? OR p.description LIKE ? OR pa.street_address LIKE ?)";
-            const searchPattern = `%${search}%`;
-            queryParams.push(searchPattern, searchPattern, searchPattern);
+            const pattern = `%${search}%`;
+            query += `
+                AND (
+                    p.title LIKE ?
+                    OR p.description LIKE ?
+                    OR pa.street_address LIKE ?
+                )
+            `;
+            params.push(pattern, pattern, pattern);
         }
+
+        /* ---------- LOCATION FILTER ---------- */
         if (latitude && longitude) {
-            query += ` AND ST_Distance_Sphere(
-                        point(pa.longitude, pa.latitude),
-                        point(?, ?)
-                    ) <= ? * 1000`;
-            queryParams.push(parseFloat(longitude), parseFloat(latitude), parseFloat(radius));
+            query += `
+                AND ST_Distance_Sphere(
+                    POINT(pa.longitude, pa.latitude),
+                    POINT(?, ?)
+                ) <= ? * 1000
+            `;
+            params.push(
+                parseFloat(longitude),
+                parseFloat(latitude),
+                parseFloat(radius)
+            );
         }
 
-        query += ` GROUP BY p.property_id ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`;
-        queryParams.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
-
-        const [properties] = await db.promise().query(query, queryParams);
-
-        if (properties.length === 0) {
-            return res.status(200).json({ status: false, message: "No properties found" });
-        }
-
-        let countQuery = `
-            SELECT COUNT(DISTINCT p.property_id) as total
-            FROM properties p
-            JOIN property_addresses pa ON p.address_id = pa.address_id 
-            inner Join favourites As fav ON fav.property_id = p.property_id AND fav.user_id = ?
-            LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
-            LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
+        query += `
+            ORDER BY ${finalSortBy} ${finalSortOrder}
+            LIMIT ? OFFSET ?
         `;
 
+        params.push(limit, (page - 1) * limit);
+
+        const [properties] = await db.promise().query(query, params);
+
+        /* ---------- COUNT QUERY ---------- */
+        let countQuery = `
+            SELECT COUNT(DISTINCT p.property_id) AS total
+            FROM properties p
+            JOIN property_addresses pa 
+                ON p.property_id = pa.property_id
+            JOIN favourites fav 
+                ON fav.property_id = p.property_id
+                AND fav.user_id = ?
+            WHERE 1=1
+        `;
+
+        const countParams = [userId];
+
         if (search) {
-            countQuery += " WHERE (p.title LIKE ? OR p.description LIKE ? OR pa.street_address LIKE ?)";
-        } if (latitude && longitude) {
-            countQuery += ` AND ST_Distance_Sphere(
-                            point(pa.longitude, pa.latitude),
-                            point(?, ?)
-                        ) <= ? * 1000`;
-            countParams.push(parseFloat(longitude), parseFloat(latitude), parseFloat(radius));
+            const pattern = `%${search}%`;
+            countQuery += `
+                AND (
+                    p.title LIKE ?
+                    OR p.description LIKE ?
+                    OR pa.street_address LIKE ?
+                )
+            `;
+            countParams.push(pattern, pattern, pattern);
         }
 
-        const [countResult] = await db.promise().query(countQuery, search ? [userId, searchPattern, searchPattern, searchPattern] : [userId]);
-        const formattedProperties = await Promise.all(
-            properties.map(async (p) => ({
-                ...p,
-                amenities: p.amenities ? p.amenities.split(",") : [],
-                images: p.images ? p.images.split(",") : [],
-                favourite: await favouriteCheck(userId, p.property_id)
-            }))
-        );
+        if (latitude && longitude) {
+            countQuery += `
+                AND ST_Distance_Sphere(
+                    POINT(pa.longitude, pa.latitude),
+                    POINT(?, ?)
+                ) <= ? * 1000
+            `;
+            countParams.push(
+                parseFloat(longitude),
+                parseFloat(latitude),
+                parseFloat(radius)
+            );
+        }
+
+        const [countResult] = await db.promise().query(countQuery, countParams);
+
+        /* ---------- FORMAT ---------- */
+        const formatted = properties.map(p => ({
+            ...p,
+            amenities: p.amenities ? p.amenities.split(", ") : [],
+            images: p.images ? p.images.split(", ") : [],
+            favourite: true
+        }));
 
         res.json({
             status: true,
-            data: formattedProperties,
+            data: formatted,
             total: countResult[0].total,
-            page: parseInt(page),
-            limit: parseInt(limit)
+            page,
+            limit
         });
+
     } catch (err) {
-        console.error("Get all properties error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
+        console.error("Favourites error:", err);
+        res.status(500).json({
+            status: false,
+            message: "Server error"
+        });
     }
 });
 
