@@ -6,11 +6,16 @@ const saveUploadedFile = require("../../helpers/uploadFile");
 
 const uploadBulk = require("../../helpers/uploadBulk");
 const saveUploadedFiles = require("../../helpers/saveUploadedFiles");
+const { addPropertyImage } = require("../../utils/propertyImageService");
 
 router.post("/all", uploadFields, async (req, res) => {
+    const { propertyId = 0 } = req.body;
     try {
 
         const result = await saveUploadedFile(req);
+        if (propertyId) {
+            addPropertyImage(propertyId, result.filePath)
+        }
 
         return res.json({
             status: true,
@@ -30,26 +35,6 @@ router.post("/all", uploadFields, async (req, res) => {
 
     }
 });
-
-// router.post("/bulk", uploadBulk, async (req, res) => {
-//     try {
-//         const result = await saveUploadedFiles(req);
-
-//         return res.json({
-//             status: true,
-//             message: "Bulk upload successful",
-//             folder: result.folder,
-//             files: result.uploadedFiles
-//         });
-
-//     } catch (err) {
-//         return res.json({
-//             status: false,
-//             message: "Bulk upload failed",
-//             error: err.message
-//         });
-//     }
-// });
 
 
 router.post("/bulk", uploadBulk, async (req, res) => {

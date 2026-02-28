@@ -66,7 +66,6 @@ router.post("/toggle-status", async (req, res) => {
 
 
 // dashboard 
-
 router.get("/metrics", async (req, res) => {
   try {
     // example queries (change table names as per your DB)

@@ -4,115 +4,6 @@ const db = require('../../../db/ConnectionSql');
 
 
 // Get all properties with details for a user
-// router.get('/getAllProperties', async (req, res) => {
-//     const userId = req?.user?.user_id || 0;
-//     const { page = 1, limit = 10, search = "", sortBy = "price_per_night", sortOrder = "asc", latitude, longitude, radius = 5, startDate = "", endDate = "", totalGuests = 0 } = req.query;
-
-//     try {
-//         let query = `
-//             SELECT 
-//     p.property_id,
-//     p.title,
-//     p.description,
-//     p.property_type,
-//     p.room_type,
-//     p.max_guests,
-//     p.bedrooms,
-//     p.beds,
-//     p.bathrooms,
-//     p.price_per_night,
-//     pa.street_address,
-//     pa.city,
-//     p.latitude,
-//     p.longitude,
-//     p.weekday_price,
-//     p.weekend_price,
-//     pa.state_province,
-//     pa.postal_code,
-//     pa.country,
-
-//     (
-//         SELECT GROUP_CONCAT(DISTINCT a.name SEPARATOR ', ')
-//         FROM property_amenities pa2
-//         JOIN amenities a ON pa2.amenity_id = a.amenity_id
-//         WHERE pa2.property_id = p.property_id
-//     ) AS amenities,
-
-//     (
-//         SELECT GROUP_CONCAT(DISTINCT pi.image_url SEPARATOR ', ')
-//         FROM property_images pi
-//         WHERE pi.property_id = p.property_id
-//     ) AS images
-
-// FROM properties p
-// LEFT JOIN property_addresses pa 
-//     ON p.property_id = pa.property_id
-// WHERE 1=1;
-//  `;
-
-//         const queryParams = [];
-//         if (search) {
-//             query += " AND (p.title LIKE ? OR p.description LIKE ? OR pa.street_address LIKE ?)";
-//             const searchPattern = `%${search}%`;
-//             queryParams.push(searchPattern, searchPattern, searchPattern);
-//         }
-//         if (latitude && longitude) {
-//             query += ` AND ST_Distance_Sphere(point(pa.longitude, pa.latitude),point(?, ?)) <= ? * 1000`;
-//             queryParams.push(parseFloat(longitude), parseFloat(latitude), parseFloat(radius));
-//         }
-
-//         if (totalGuests) {
-//             console.log("totalGuests", totalGuests);
-//             query += ` AND p.max_guests >= ?`;
-//             queryParams.push(parseInt(totalGuests));
-//         }
-
-//         query += ` ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`;
-
-//         queryParams.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
-//         const [properties] = await db.promise().query(query, queryParams);
-//         if (properties.length === 0) {
-//             return res.status(200).json({ status: false, message: "No properties found" });
-//         }
-
-//         let countQuery = `
-//             SELECT COUNT(DISTINCT p.property_id) as total FROM properties p
-//             LEFT JOIN property_addresses pa ON  p.property_id = pa.property_id
-//             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
-//             LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
-//         `;
-
-//         if (search) {
-//             countQuery += " WHERE (p.title LIKE ? OR p.description LIKE ? OR pa.street_address LIKE ?)";
-//         } if (latitude && longitude) {
-//             countQuery += ` AND ST_Distance_Sphere(point(pa.longitude, pa.latitude), point(?, ?) ) <= ? * 1000`;
-//             countParams.push(parseFloat(longitude), parseFloat(latitude), parseFloat(radius));
-//         }
-
-//         const [countResult] = await db.promise().query(countQuery, search ? [searchPattern, searchPattern, searchPattern] : []);
-
-//         const formattedProperties = await Promise.all(
-//             properties.map(async (p) => ({
-//                 ...p,
-//                 amenities: p.amenities ? p.amenities.split(",") : [],
-//                 images: p.images ? p.images.split(",") : [],
-//                 favourite: await favouriteCheck(userId, p.property_id) // returns true/false
-//             }))
-//         );
-
-//         res.json({
-//             status: true,
-//             data: formattedProperties,
-//             total: countResult[0].total,
-//             page: parseInt(page),
-//             limit: parseInt(limit)
-//         });
-//     } catch (err) {
-//         console.error("Get all properties error:", err);
-//         res.status(500).json({ status: false, message: "Server error" });
-//     }
-// });
-
 router.get('/getAllProperties', async (req, res) => {
     try {
         const userId = req?.user?.user_id || 0;
@@ -484,9 +375,6 @@ router.get('/getfavouriteProperties', async (req, res) => {
 });
 
 
-
-
-
 // Get property details by property_id
 router.get('/getPropertyDetails', async (req, res) => {
     const { property_id } = req.query;
@@ -524,39 +412,6 @@ router.get('/getPropertyDetails', async (req, res) => {
 
 
 // Get all bookings for a user
-// router.get('/getUserBookings', async (req, res) => {
-//     const userId = req?.user?.user_id || 0;
-
-//     const { page = 1, limit = 10 } = req.query;
-//     try {
-//         const query = `
-//             SELECT b.booking_id, b.property_id, b.check_in_date, b.check_out_date, b.total_price,
-//             b.status, b.guests_count, p.title AS property_title FROM bookings b
-//             JOIN properties p ON b.property_id = p.property_id WHERE b.guest_id = ?
-//             ORDER BY b.created_at DESC LIMIT ? OFFSET ?
-//         `;
-
-//         const [bookings] = await db.promise().query(query, [userId, parseInt(limit), (parseInt(page) - 1) * parseInt(limit)]);
-
-//         if (bookings.length === 0) {
-//             return res.status(200).json({ status: false, message: "No bookings found" });
-//         }
-
-//         let countQuery = "SELECT COUNT(booking_id) as total FROM bookings WHERE guest_id = ?";
-//         const [countResult] = await db.promise().query(countQuery, [userId]);
-
-//         res.json({
-//             status: true,
-//             data: bookings,
-//             total: countResult[0].total,
-//             page: parseInt(page),
-//             limit: parseInt(limit)
-//         });
-//     } catch (err) {
-//         console.error("Get user bookings error:", err);
-//         res.status(500).json({ status: false, message: "Server error" });
-//     }
-// });
 
 router.get('/getUserBookings', async (req, res) => {
     const userId = req?.user?.user_id || 0;

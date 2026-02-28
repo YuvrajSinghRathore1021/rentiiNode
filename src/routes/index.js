@@ -34,12 +34,10 @@ router.use('/uploadFile', uploaddata);
 router.use('/data', authenticateToken, DataGet);
 router.use('/property', authenticateToken, propertyRoutes);
 router.use("/user", loginRoutes);
-router.use('/onBording', authenticateToken, propartybording);
+router.use('/onBoarding', authenticateToken, propartybording);  //////onBording
 router.use('/host', authenticateToken, host);
-// router.use('/userProparty', authenticateToken, propartyuser);
 router.use('/userProparty', propartyuser);
 router.use('/razorpay', authenticateToken, razorpay);
-router.use('/profile', authenticateToken, Profile);
 router.use('/calendarManagement', authenticateToken, Calendar);
 router.use('/booking', authenticateToken, Booking);
 router.use('/document', authenticateToken, Document);

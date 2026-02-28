@@ -2,13 +2,14 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../../db/ConnectionSql');
 const dbn = require('../../../db/db');
-const { deletePropertyImage } = require("../../utils/propertyImageService");
+
 // view api
 router.get('/properties', async (req, res) => {
     const userId = req.user.user_id;
     const hostId = req.user.host_id;
 
     const { page = 1, limit = 10, search = "", status = "", latitude, longitude, radius = 5 } = req.query;
+
     try {
         let query = `
             SELECT p.property_id, p.title, p.description, p.property_type, p.room_type, p.max_guests, 
@@ -167,6 +168,46 @@ router.get('/host-properties', async (req, res) => {
     }
 });
 
+
+
+// router.get('/host-properties', async (req, res) => {
+//     const hostId = req.user.host_id;
+
+//     if (!hostId) {
+//         return res.status(400).json({ status: false, message: "Host ID is required" });
+//     }
+
+//     try {
+//         const query = `
+//             SELECT p.property_id, p.title, p.description, p.property_type, p.room_type, 
+//                    p.max_guests, p.bedrooms, p.beds, p.bathrooms, p.price_per_night, 
+//                    p.cleaning_fee, pa.street_address, pa.city, pa.state_province, 
+//                    pa.postal_code, pa.country,
+//                    GROUP_CONCAT(DISTINCT a.name) AS amenities,
+//                    pi.image_url
+//             FROM properties p
+//             JOIN property_addresses pa ON p.property_id = pa.property_id
+//             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
+//             LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
+//             LEFT JOIN property_images pi ON p.property_id = pi.property_id AND pi.is_primary = 1
+//             WHERE p.host_id = ?
+//             GROUP BY p.property_id`;
+
+//         const [properties] = await db.promise().query(query, [hostId]);
+
+//         if (properties.length === 0) {
+//             return res.status(404).json({ status: false, message: "No properties found for this host" });
+//         }
+
+//         res.json({ status: true, data: properties });
+//     } catch (err) {
+//         console.error("Get host properties error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
+
+
+
 const multer = require("multer");
 const path = require("path");
 
@@ -176,6 +217,7 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+
 
 
 router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) => {
@@ -387,7 +429,6 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
 
 
 router.post('/edit-property', upload.array("placesPhotos", 10), async (req, res) => {
-     console.log("edit-property=", 1)
     const connection = await dbn.getConnection();
 
     try {
@@ -402,8 +443,7 @@ router.post('/edit-property', upload.array("placesPhotos", 10), async (req, res)
         }
 
         const data = JSON.parse(req.body.data);
-        console.log("edit-property=", data)
-        console.log(propertyId, "=edit=", data)
+console.log(propertyId,"=edit=",data)
         let status = 0;
         if (req.body.status == "Approve") status = 1;
 
@@ -576,6 +616,8 @@ router.post('/edit-property', upload.array("placesPhotos", 10), async (req, res)
         connection.release();
     }
 });
+
+
 
 
 router.post('/add-propertyWeb', async (req, res) => {
@@ -976,6 +1018,7 @@ router.post("/edit-propertyWeb",
 
 
 
+// // // // // edit property 
 // router.post('/edit-property', async (req, res) => {
 //     const userId = req.user.user_id;
 //     const hostId = req.user.host_id;
@@ -985,148 +1028,26 @@ router.post("/edit-propertyWeb",
 //     }
 
 //     const { type, propertyId, data } = req.body;
-//     console.log("data =", data)
-
 //     if (!type || !propertyId) {
 //         return res.status(400).json({ status: false, message: "Property ID and type are required" });
 //     }
 
-
 //     try {
 //         let updateQuery = "";
 //         let updateValue = [];
-//         let dataNew = "";
 
-//         if (type == "producttitle") {
-
-//             updateQuery = `UPDATE properties SET title = ? WHERE host_id = ? AND property_id=?`;
-//             updateValue = [data?.producttitle?.title, hostId, propertyId];
+//         if (type == "liketohost") {
+//             updateQuery = `UPDATE properties SET property_type = ? WHERE host_id = ? AND property_id=?`;
+//             updateValue = [data.liketohost.type, hostId, propertyId];
 //         }
-//         if (type == "direction") {
-
-//             updateQuery = `UPDATE properties SET description = ? WHERE host_id = ? AND property_id=?`;
-//             updateValue = [data?.direction, hostId, propertyId];
+//         else if (type == "describeyourplace") {
+//             updateQuery = `UPDATE properties SET describe_apartment = ? WHERE host_id = ? AND property_id=?`;
+//             updateValue = [data.describeyourplace.type, hostId, propertyId];
 //         }
-//         else if (type == "propertytype") {
-//             dataNew = data?.propertytype;
-//             updateQuery = `UPDATE properties SET describe_apartment = ?,listing_type=?,floor=? ,floor_listing=?,year_built=?,property_size=?, unit=? WHERE host_id = ? AND property_id=?`;
-
-//             updateValue = [dataNew?.mostlikeyourplace, dataNew?.Listingtype, dataNew?.floors, dataNew?.floorislistingon, dataNew?.yearbuilt, dataNew?.propertysize, dataNew?.unit, hostId, propertyId];
+//         else if (type == "typeofplaceguesthave") {
+//             updateQuery = `UPDATE properties SET room_type = ? WHERE host_id = ? AND property_id=?`;
+//             updateValue = [data.typeofplaceguesthave.type, hostId, propertyId];
 //         }
-//         else if (type == "pernight") {
-//             dataNew = data?.pernight;
-//             updateQuery = `UPDATE properties SET price_per_night = ? WHERE host_id = ? AND property_id=?`;
-//             updateValue = [dataNew?.pernight, hostId, propertyId];
-//         }
-//         else if (type == "weekendprice") {
-//             dataNew = data?.weekendprice;
-//             updateQuery = `UPDATE properties SET weekend_price = ? WHERE host_id = ? AND property_id=?`;
-//             updateValue = [dataNew?.weekendprice, hostId, propertyId];
-//         }
-//         else if (type == "weeklydiscount") {
-//             dataNew = data?.weeklydiscount;
-//             updateQuery = `UPDATE properties SET weekly_discount = ? WHERE host_id = ? AND property_id=?`;
-//             updateValue = [dataNew?.weeklydiscount, hostId, propertyId]; weekly_discount
-//         }
-
-//         else if (type == "monthlydiscount") {
-//             dataNew = data?.monthlydiscount;
-//             updateQuery = `UPDATE properties SET monthly_discount = ? WHERE host_id = ? AND property_id=?`;
-//             updateValue = [dataNew?.monthlydiscount, hostId, propertyId];
-//         }
-//         else if (type == "bookingsetting") {
-//             dataNew = data?.bookingsetting;
-//             updateQuery = `UPDATE properties SET booking_setting = ? WHERE host_id = ? AND property_id=?`;
-//             updateValue = [dataNew?.bookingsetting, hostId, propertyId];
-//         }
-//         else if (type == "numberofguests") {
-//             dataNew = data?.numberofguests;
-//             updateQuery = `UPDATE properties SET max_guests = ? WHERE host_id = ? AND property_id=?`;
-//             updateValue = [dataNew?.numberofguests, hostId, propertyId];
-//         }
-//         else if (type == "placehastooffer" || type == "describeyourapartment" || type == "safetydetails" || type == "amenities") {
-//             await db.promise().query(`DELETE FROM property_amenities WHERE property_id=?`, [propertyId]);
-//             const items = Object.keys(data[type]).filter(k => data[type][k] == '1');
-//             for (const item of items) {
-//                 const [rows] = await db.promise().query(`SELECT amenity_id FROM amenities WHERE value=?`, [item]);
-//                 if (rows.length) {
-//                     await db.promise().query(
-//                         `INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)`,
-//                         [propertyId, rows[0].amenity_id]
-//                     );
-//                 }
-//             }
-//         }
-
-//         // new 
-//         else if (type == "availability") {
-//             let av = data.availability;
-//             let minimumavailability = av.minimumavailability?.minimumavailability || null;
-//             let maximumnights = av.maximumnights?.maximumnights || null;
-//             let advancenotice = av.advancenotice?.advancenotice || null;
-//             let samedayadvancenotice = av.samedayadvancenotice?.samedayadvancenotice || null;
-//             let preparationtime = av.preparationtime?.preparationtime || null;
-//             let availabilitywindow = av.availabilitywindow?.availabilitywindow || null;
-
-//             let restricted_checkin = av.moreavailabilitysetting?.restrictedcheckin?.restrictedcheckin || null;
-//             let restricted_checkout = av.moreavailabilitysetting?.restrictedcheckout?.restrictedcheckout || null;
-
-//             // check if exists
-//             let [check] = await db.promise().query(
-//                 "SELECT id FROM property_availability WHERE property_id = ?",
-//                 [propertyId]
-//             );
-
-//             if (check.length > 0) {
-//                 // Update
-//                 updateQuery = `
-//             UPDATE property_availability SET
-//                 minimumavailability = ?,
-//                 maximumnights = ?,
-//                 advancenotice = ?,
-//                 samedayadvancenotice = ?,
-//                 preparationtime = ?,
-//                 availabilitywindow = ?,
-//                 restricted_checkin = ?,
-//                 restricted_checkout = ?
-//             WHERE property_id = ?
-//         `;
-
-//                 updateValue = [
-//                     minimumavailability,
-//                     maximumnights,
-//                     advancenotice,
-//                     samedayadvancenotice,
-//                     preparationtime,
-//                     availabilitywindow,
-//                     restricted_checkin,
-//                     restricted_checkout,
-//                     propertyId
-//                 ];
-//             } else {
-//                 // Insert
-//                 updateQuery = `
-//             INSERT INTO property_availability 
-//             (property_id, minimumavailability, maximumnights, advancenotice,
-//              samedayadvancenotice, preparationtime, availabilitywindow,
-//              restricted_checkin, restricted_checkout)
-//             VALUES (?,?,?,?,?,?,?,?,?)
-//         `;
-
-//                 updateValue = [
-//                     propertyId,
-//                     minimumavailability,
-//                     maximumnights,
-//                     advancenotice,
-//                     samedayadvancenotice,
-//                     preparationtime,
-//                     availabilitywindow,
-//                     restricted_checkin,
-//                     restricted_checkout
-//                 ];
-//             }
-//         }
-
 //         else if (type == "placelocated") {
 //             updateQuery = `UPDATE property_addresses 
 //                            SET street_address=?, city=?, state_province=?, postal_code=?, country=?, latitude=?, longitude=? 
@@ -1142,282 +1063,112 @@ router.post("/edit-propertyWeb",
 //                 propertyId
 //             ];
 //         }
-//         else if (type == "description") {
-//             let desc = data.description;
-
-//             let listingdescription = desc.listingdescription?.listingdescription || null;
-//             let yourproperty = desc.yourproperty?.yourproperty || null;
-//             let guestaccessdetails = desc.guestaccess?.guestaccessdetails || null;
-//             let interactionwithguests = desc.interactionwithguests?.interactionwithguests || null;
-//             let otherdetails = desc.otherdetails?.otherdetails || null;
-
-//             // Check if exists
-//             let [check] = await db.promise().query(
-//                 "SELECT id FROM property_description_details WHERE property_id = ?",
-//                 [propertyId]
-//             );
-
-//             if (check.length > 0) {
-//                 // UPDATE
-//                 updateQuery = `
-//             UPDATE property_description_details SET
-//                 listingdescription = ?,
-//                 yourproperty = ?,
-//                 guestaccessdetails = ?,
-//                 interactionwithguests = ?,
-//                 otherdetails = ?
-//             WHERE property_id = ?
-//         `;
-
-//                 updateValue = [
-//                     listingdescription,
-//                     yourproperty,
-//                     guestaccessdetails,
-//                     interactionwithguests,
-//                     otherdetails,
-//                     propertyId
-//                 ];
-
-//             } else {
-//                 // INSERT
-//                 updateQuery = `
-//             INSERT INTO property_description_details
-//             (property_id, listingdescription, yourproperty, guestaccessdetails,
-//              interactionwithguests, otherdetails)
-//             VALUES (?,?,?,?,?,?)
-//         `;
-
-//                 updateValue = [
-//                     propertyId,
-//                     listingdescription,
-//                     yourproperty,
-//                     guestaccessdetails,
-//                     interactionwithguests,
-//                     otherdetails
-//                 ];
-//             }
+//         else if (type == "startwiththebasics") {
+//             updateQuery = `UPDATE properties SET max_guests=?, bedrooms=?, bedroom_look=?, beds=? WHERE property_id=?`;
+//             updateValue = [
+//                 data.startwiththebasics.peoplecanstay.guests,
+//                 data.startwiththebasics.peoplecanstay.bedrooms,
+//                 data.startwiththebasics.havealock.type,
+//                 data.startwiththebasics.peoplecanstay.beds,
+//                 propertyId
+//             ];
+//         }
+//         else if (type == "bathroomsareavailabletoguests") {
+//             updateQuery = `UPDATE properties SET bathrooms=?, attached_bathrooms=?, dedicated_bathrooms=?, shard_bathrooms=? WHERE property_id=?`;
+//             updateValue = [
+//                 parseInt(data.bathroomsareavailabletoguests.privateandatteched) +
+//                 parseInt(data.bathroomsareavailabletoguests.dedicated) +
+//                 parseInt(data.bathroomsareavailabletoguests.shared),
+//                 data.bathroomsareavailabletoguests.privateandatteched,
+//                 data.bathroomsareavailabletoguests.dedicated,
+//                 data.bathroomsareavailabletoguests.shared,
+//                 propertyId
+//             ];
+//         }
+//         else if (type == "elsemightbethere") {
+//             updateQuery = `UPDATE properties SET other_people=? WHERE property_id=?`;
+//             updateValue = [data.elsemightbethere.type, propertyId];
+//         }
+//         else if (type == "apartmenttitle") {
+//             updateQuery = `UPDATE properties SET title=? WHERE property_id=?`;
+//             updateValue = [data.apartmenttitle.title, propertyId];
+//         }
+//         else if (type == "apartmentdescription") {
+//             updateQuery = `UPDATE properties SET description=? WHERE property_id=?`;
+//             updateValue = [data.apartmentdescription.description, propertyId];
+//         }
+//         else if (type == "pickyourbookingsetting") {
+//             updateQuery = `UPDATE property_booking_settings SET approve5booking=?, instantbook=? WHERE property_id=?`;
+//             updateValue = [
+//                 data.pickyourbookingsetting.approve5booking,
+//                 data.pickyourbookingsetting.instantbook,
+//                 propertyId
+//             ];
+//         }
+//         else if (type == "weekdaybaseprice") {
+//             updateQuery = `UPDATE properties SET weekday_price=? WHERE property_id=?`;
+//             updateValue = [data.weekdaybaseprice.price, propertyId];
+//         }
+//         else if (type == "weekendprice") {
+//             updateQuery = `UPDATE properties SET weekend_price=? WHERE property_id=?`;
+//             updateValue = [data.weekendprice.price, propertyId];
+//         }
+//         else if (type == "discount") {
+//             updateQuery = `UPDATE property_discounts 
+//                            SET newlistingpromotion=?, lastminutediscount=?, weeklydiscount=?, monthlydiscount=? 
+//                            WHERE property_id=?`;
+//             updateValue = [
+//                 data.discount.newlistingpromotion,
+//                 data.discount.lastminutediscount,
+//                 data.discount.weeklydiscount,
+//                 data.discount.monthlydiscount,
+//                 propertyId
+//             ];
+//         }
+//         else if (type == "residentailaddress") {
+//             updateQuery = `UPDATE host_addresses 
+//                            SET flat=?,street_address=?, city=?, state_province=?, zip_code=?, country=?, landmark=?, district=? 
+//                            WHERE host_id=?`;
+//             updateValue = [
+//                 data.residentailaddress.flat,
+//                 data.residentailaddress.streetaddress,
+//                 data.residentailaddress.city,
+//                 data.residentailaddress.state,
+//                 data.residentailaddress.pincode,
+//                 data.residentailaddress.country,
+//                 data.residentailaddress.landmark,
+//                 data.residentailaddress.district,
+//                 hostId
+//             ];
 //         }
 
-
 //         // ✅ Pending Parts
-//         else if (type == "placePhotos") {
-//             // delete old and insert new
-//             await db.promise().query(`DELETE FROM property_images WHERE property_id=?`, [propertyId]);
-//             if (data.placePhotos?.images?.length) {
-//                 for (let i = 0; i < data.placePhotos.images.length; i++) {
+// else if (type == "placePhotos") {
+//     // delete old and insert new
+//     await db.promise().query(`DELETE FROM property_images WHERE property_id=?`, [propertyId]);
+//     if (data.placePhotos?.images?.length) {
+//         for (let i = 0; i < data.placePhotos.images.length; i++) {
+//             await db.promise().query(
+//                 `INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
+//                 [propertyId, data.placePhotos.images[i], i === 0 ? 1 : 0]
+//             );
+//         }
+//     }
+// }
+
+//         else if (type == "placehastooffer" || type == "describeyourapartment" || type == "safetydetails") {
+//             await db.promise().query(`DELETE FROM property_amenities WHERE property_id=?`, [propertyId]);
+//             const items = Object.keys(data[type]).filter(k => data[type][k] == '1');
+//             for (const item of items) {
+//                 const [rows] = await db.promise().query(`SELECT amenity_id FROM amenities WHERE value=?`, [item]);
+//                 if (rows.length) {
 //                     await db.promise().query(
-//                         `INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
-//                         [propertyId, data.placePhotos.images[i], i === 0 ? 1 : 0]
+//                         `INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)`,
+//                         [propertyId, rows[0].amenity_id]
 //                     );
 //                 }
 //             }
 //         }
-
-//         else if (type == "houserules") {
-
-//             let rules = data.houserules;
-
-//             let no_pets = rules.petsallowed == "1" ? 0 : 1;
-//             let no_smoking = rules.smokingallowed == "1" ? 0 : 1;
-//             let no_parties = rules.eventsallowed == "1" ? 0 : 1;
-//             let no_children = rules.quiethours == "1" ? 1 : 0;
-
-//             let check_in_time = rules.checkincheckouttimes == "1" ? "default" : null;
-//             let check_out_time = rules.checkincheckouttimes == "1" ? "default" : null;
-
-//             let other_rules = rules.additionalrules || null;
-
-//             // check if exists
-//             let [check] = await db.promise().query(
-//                 "SELECT rule_id FROM house_rules WHERE property_id = ?",
-//                 [propertyId]
-//             );
-
-//             if (check.length > 0) {
-//                 // UPDATE
-//                 updateQuery = `
-//             UPDATE house_rules SET
-//                 no_pets = ?,
-//                 no_smoking = ?,
-//                 no_parties = ?,
-//                 no_children = ?,
-//                 check_in_time = ?,
-//                 check_out_time = ?,
-//                 other_rules = ?
-//             WHERE property_id = ?
-//         `;
-
-//                 updateValue = [
-//                     no_pets,
-//                     no_smoking,
-//                     no_parties,
-//                     no_children,
-//                     check_in_time,
-//                     check_out_time,
-//                     other_rules,
-//                     propertyId
-//                 ];
-
-//             } else {
-//                 // INSERT
-//                 updateQuery = `
-//             INSERT INTO house_rules
-//             (property_id, no_pets, no_smoking, no_parties, no_children,
-//              check_in_time, check_out_time, other_rules)
-//             VALUES (?,?,?,?,?,?,?,?)
-//         `;
-
-//                 updateValue = [
-//                     propertyId,
-//                     no_pets,
-//                     no_smoking,
-//                     no_parties,
-//                     no_children,
-//                     check_in_time,
-//                     check_out_time,
-//                     other_rules
-//                 ];
-//             }
-//         }
-//         else if (type == "cancellationpolicy") {
-
-//             let pol = data.cancellationpolicy;
-
-//             let standardpolicy = pol.standardpolicy || null;
-//             let longtermstaypolicy = pol.longtermstaypolicy || null;
-
-//             // Check if exists
-//             let [check] = await db.promise().query(
-//                 "SELECT id FROM property_cancellation_policy WHERE property_id = ?",
-//                 [propertyId]
-//             );
-
-//             if (check.length > 0) {
-//                 // UPDATE
-//                 updateQuery = `
-//             UPDATE property_cancellation_policy SET
-//                 standardpolicy = ?,
-//                 longtermstaypolicy = ?
-//             WHERE property_id = ?
-//         `;
-
-//                 updateValue = [
-//                     standardpolicy,
-//                     longtermstaypolicy,
-//                     propertyId
-//                 ];
-
-//             } else {
-//                 // INSERT
-//                 updateQuery = `
-//             INSERT INTO property_cancellation_policy
-//             (property_id, standardpolicy, longtermstaypolicy)
-//             VALUES (?,?,?)
-//         `;
-
-//                 updateValue = [
-//                     propertyId,
-//                     standardpolicy,
-//                     longtermstaypolicy
-//                 ];
-//             }
-//         }
-//         else if (type == "checkin") {
-
-//             let checkin = data.checkin;
-
-//             let starttime = checkin.starttime || null;
-//             let endtime = checkin.endtime || null;
-//             let checkouttime = checkin.checkouttime || null;
-
-//             // Check if record exists
-//             let [check] = await db.promise().query(
-//                 "SELECT id FROM property_checkin WHERE property_id = ?",
-//                 [propertyId]
-//             );
-
-//             if (check.length > 0) {
-//                 // UPDATE
-//                 updateQuery = `
-//             UPDATE property_checkin SET
-//                 starttime = ?,
-//                 endtime = ?,
-//                 checkouttime = ?
-//             WHERE property_id = ?
-//         `;
-
-//                 updateValue = [
-//                     starttime,
-//                     endtime,
-//                     checkouttime,
-//                     propertyId
-//                 ];
-
-//             } else {
-//                 // INSERT
-//                 updateQuery = `
-//             INSERT INTO property_checkin
-//             (property_id, starttime, endtime, checkouttime)
-//             VALUES (?,?,?,?)
-//         `;
-
-//                 updateValue = [
-//                     propertyId,
-//                     starttime,
-//                     endtime,
-//                     checkouttime
-//                 ];
-//             }
-//         }
-//         else if (type == "checkout") {
-
-//             let checkout = data.checkout;
-
-//             let starttime = checkout.starttime || null;
-//             let endtime = checkout.endtime || null;
-//             let checkouttime = checkout.checkouttime || null;
-
-//             // Check if record exists
-//             let [check] = await db.promise().query(
-//                 "SELECT id FROM property_checkout WHERE property_id = ?",
-//                 [propertyId]
-//             );
-
-//             if (check.length > 0) {
-//                 // UPDATE
-//                 updateQuery = `
-//             UPDATE property_checkout SET
-//                 starttime = ?,
-//                 endtime = ?,
-//                 checkouttime = ?
-//             WHERE property_id = ?
-//         `;
-
-//                 updateValue = [
-//                     starttime,
-//                     endtime,
-//                     checkouttime,
-//                     propertyId
-//                 ];
-
-//             } else {
-//                 // INSERT
-//                 updateQuery = `
-//             INSERT INTO property_checkout
-//             (property_id, starttime, endtime, checkouttime)
-//             VALUES (?,?,?,?)
-//         `;
-
-//                 updateValue = [
-//                     propertyId,
-//                     starttime,
-//                     endtime,
-//                     checkouttime
-//                 ];
-//             }
-//         }
-
-
 
 //         if (updateQuery) {
 //             await db.promise().query(updateQuery, updateValue);
@@ -1430,11 +1181,461 @@ router.post("/edit-propertyWeb",
 //     }
 // });
 
+router.post('/edit-property', async (req, res) => {
+    const userId = req.user.user_id;
+    const hostId = req.user.host_id;
 
-// //view property-old proper 
+    if (!hostId) {
+        return res.status(400).json({ status: false, message: "Host Not found pls re-login" });
+    }
+
+    const { type, propertyId, data } = req.body;
+    if (!type || !propertyId) {
+        return res.status(400).json({ status: false, message: "Property ID and type are required" });
+    }
+    try {
+        let updateQuery = "";
+        let updateValue = [];
+        let dataNew = "";
+
+        if (type == "producttitle") {
+
+            updateQuery = `UPDATE properties SET title = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [data?.producttitle?.title, hostId, propertyId];
+        }
+        if (type == "direction") {
+
+            updateQuery = `UPDATE properties SET description = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [data?.direction, hostId, propertyId];
+        }
+        else if (type == "propertytype") {
+            dataNew = data?.propertytype;
+            updateQuery = `UPDATE properties SET describe_apartment = ?,listing_type=?,floor=? ,floor_listing=?,year_built=?,property_size=?, unit=? WHERE host_id = ? AND property_id=?`;
+
+            updateValue = [dataNew?.mostlikeyourplace, dataNew?.Listingtype, dataNew?.floors, dataNew?.floorislistingon, dataNew?.yearbuilt, dataNew?.propertysize, dataNew?.unit, hostId, propertyId];
+        }
+        else if (type == "pernight") {
+            dataNew = data?.pernight;
+            updateQuery = `UPDATE properties SET price_per_night = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.pernight, hostId, propertyId];
+        }
+        else if (type == "weekendprice") {
+            dataNew = data?.weekendprice;
+            updateQuery = `UPDATE properties SET weekend_price = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.weekendprice, hostId, propertyId];
+        }
+        else if (type == "weeklydiscount") {
+            dataNew = data?.weeklydiscount;
+            updateQuery = `UPDATE properties SET weekly_discount = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.weeklydiscount, hostId, propertyId];
+        }
+
+        else if (type == "monthlydiscount") {
+            dataNew = data?.monthlydiscount;
+            updateQuery = `UPDATE properties SET monthly_discount = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.monthlydiscount, hostId, propertyId];
+        }
+        else if (type == "bookingsetting") {
+            dataNew = data?.bookingsetting;
+            updateQuery = `UPDATE properties SET booking_setting = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.bookingsetting, hostId, propertyId];
+        }
+        else if (type == "numberofguests") {
+            dataNew = data?.numberofguests;
+            updateQuery = `UPDATE properties SET max_guests = ? WHERE host_id = ? AND property_id=?`;
+            updateValue = [dataNew?.numberofguests, hostId, propertyId];
+        }
+        else if (type == "placehastooffer" || type == "describeyourapartment" || type == "safetydetails" || type == "amenities") {
+            await db.promise().query(`DELETE FROM property_amenities WHERE property_id=?`, [propertyId]);
+            const items = Object.keys(data[type]).filter(k => data[type][k] == '1');
+            for (const item of items) {
+                const [rows] = await db.promise().query(`SELECT amenity_id FROM amenities WHERE value=?`, [item]);
+                if (rows.length) {
+                    await db.promise().query(
+                        `INSERT INTO property_amenities (property_id, amenity_id) VALUES (?,?)`,
+                        [propertyId, rows[0].amenity_id]
+                    );
+                }
+            }
+        }
+
+        // new 
+        else if (type == "availability") {
+            let av = data.availability;
+            let minimumavailability = av.minimumavailability?.minimumavailability || null;
+            let maximumnights = av.maximumnights?.maximumnights || null;
+            let advancenotice = av.advancenotice?.advancenotice || null;
+            let samedayadvancenotice = av.samedayadvancenotice?.samedayadvancenotice || null;
+            let preparationtime = av.preparationtime?.preparationtime || null;
+            let availabilitywindow = av.availabilitywindow?.availabilitywindow || null;
+
+            let restricted_checkin = av.moreavailabilitysetting?.restrictedcheckin?.restrictedcheckin || null;
+            let restricted_checkout = av.moreavailabilitysetting?.restrictedcheckout?.restrictedcheckout || null;
+
+            // check if exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_availability WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // Update
+                updateQuery = `
+            UPDATE property_availability SET
+                minimumavailability = ?,
+                maximumnights = ?,
+                advancenotice = ?,
+                samedayadvancenotice = ?,
+                preparationtime = ?,
+                availabilitywindow = ?,
+                restricted_checkin = ?,
+                restricted_checkout = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    minimumavailability,
+                    maximumnights,
+                    advancenotice,
+                    samedayadvancenotice,
+                    preparationtime,
+                    availabilitywindow,
+                    restricted_checkin,
+                    restricted_checkout,
+                    propertyId
+                ];
+            } else {
+                // Insert
+                updateQuery = `
+            INSERT INTO property_availability 
+            (property_id, minimumavailability, maximumnights, advancenotice,
+             samedayadvancenotice, preparationtime, availabilitywindow,
+             restricted_checkin, restricted_checkout)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    minimumavailability,
+                    maximumnights,
+                    advancenotice,
+                    samedayadvancenotice,
+                    preparationtime,
+                    availabilitywindow,
+                    restricted_checkin,
+                    restricted_checkout
+                ];
+            }
+        }
+
+        else if (type == "placelocated") {
+            updateQuery = `UPDATE property_addresses 
+                           SET street_address=?, city=?, state_province=?, postal_code=?, country=?, latitude=?, longitude=? 
+                           WHERE property_id=?`;
+            updateValue = [
+                data.placelocated.streetaddress,
+                data.placelocated.district,
+                data.placelocated.state,
+                data.placelocated.pincode,
+                data.placelocated.country,
+                data.placelocated.latitude,
+                data.placelocated.longitude,
+                propertyId
+            ];
+        }
+        else if (type == "description") {
+            let desc = data.description;
+
+            let listingdescription = desc.listingdescription?.listingdescription || null;
+            let yourproperty = desc.yourproperty?.yourproperty || null;
+            let guestaccessdetails = desc.guestaccess?.guestaccessdetails || null;
+            let interactionwithguests = desc.interactionwithguests?.interactionwithguests || null;
+            let otherdetails = desc.otherdetails?.otherdetails || null;
+
+            // Check if exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_description_details WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE property_description_details SET
+                listingdescription = ?,
+                yourproperty = ?,
+                guestaccessdetails = ?,
+                interactionwithguests = ?,
+                otherdetails = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    listingdescription,
+                    yourproperty,
+                    guestaccessdetails,
+                    interactionwithguests,
+                    otherdetails,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO property_description_details
+            (property_id, listingdescription, yourproperty, guestaccessdetails,
+             interactionwithguests, otherdetails)
+            VALUES (?,?,?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    listingdescription,
+                    yourproperty,
+                    guestaccessdetails,
+                    interactionwithguests,
+                    otherdetails
+                ];
+            }
+        }
 
 
-router.get('/view-property-onboarding', async (req, res) => {
+        // ✅ Pending Parts
+        else if (type == "placePhotos") {
+            // delete old and insert new
+            await db.promise().query(`DELETE FROM property_images WHERE property_id=?`, [propertyId]);
+            if (data.placePhotos?.images?.length) {
+                for (let i = 0; i < data.placePhotos.images.length; i++) {
+                    await db.promise().query(
+                        `INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
+                        [propertyId, data.placePhotos.images[i], i === 0 ? 1 : 0]
+                    );
+                }
+            }
+        }
+
+        else if (type == "houserules") {
+
+            let rules = data.houserules;
+
+            let no_pets = rules.petsallowed == "1" ? 0 : 1;
+            let no_smoking = rules.smokingallowed == "1" ? 0 : 1;
+            let no_parties = rules.eventsallowed == "1" ? 0 : 1;
+            let no_children = rules.quiethours == "1" ? 1 : 0;
+
+            let check_in_time = rules.checkincheckouttimes == "1" ? "default" : null;
+            let check_out_time = rules.checkincheckouttimes == "1" ? "default" : null;
+
+            let other_rules = rules.additionalrules || null;
+
+            // check if exists
+            let [check] = await db.promise().query(
+                "SELECT rule_id FROM house_rules WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE house_rules SET
+                no_pets = ?,
+                no_smoking = ?,
+                no_parties = ?,
+                no_children = ?,
+                check_in_time = ?,
+                check_out_time = ?,
+                other_rules = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    no_pets,
+                    no_smoking,
+                    no_parties,
+                    no_children,
+                    check_in_time,
+                    check_out_time,
+                    other_rules,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO house_rules
+            (property_id, no_pets, no_smoking, no_parties, no_children,
+             check_in_time, check_out_time, other_rules)
+            VALUES (?,?,?,?,?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    no_pets,
+                    no_smoking,
+                    no_parties,
+                    no_children,
+                    check_in_time,
+                    check_out_time,
+                    other_rules
+                ];
+            }
+        }
+        else if (type == "cancellationpolicy") {
+
+            let pol = data.cancellationpolicy;
+
+            let standardpolicy = pol.standardpolicy || null;
+            let longtermstaypolicy = pol.longtermstaypolicy || null;
+
+            // Check if exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_cancellation_policy WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE property_cancellation_policy SET
+                standardpolicy = ?,
+                longtermstaypolicy = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    standardpolicy,
+                    longtermstaypolicy,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO property_cancellation_policy
+            (property_id, standardpolicy, longtermstaypolicy)
+            VALUES (?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    standardpolicy,
+                    longtermstaypolicy
+                ];
+            }
+        }
+        else if (type == "checkin") {
+
+            let checkin = data.checkin;
+
+            let starttime = checkin.starttime || null;
+            let endtime = checkin.endtime || null;
+            let checkouttime = checkin.checkouttime || null;
+
+            // Check if record exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_checkin WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE property_checkin SET
+                starttime = ?,
+                endtime = ?,
+                checkouttime = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    starttime,
+                    endtime,
+                    checkouttime,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO property_checkin
+            (property_id, starttime, endtime, checkouttime)
+            VALUES (?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    starttime,
+                    endtime,
+                    checkouttime
+                ];
+            }
+        }
+        else if (type == "checkout") {
+
+            let checkout = data.checkout;
+
+            let starttime = checkout.starttime || null;
+            let endtime = checkout.endtime || null;
+            let checkouttime = checkout.checkouttime || null;
+
+            // Check if record exists
+            let [check] = await db.promise().query(
+                "SELECT id FROM property_checkout WHERE property_id = ?",
+                [propertyId]
+            );
+
+            if (check.length > 0) {
+                // UPDATE
+                updateQuery = `
+            UPDATE property_checkout SET
+                starttime = ?,
+                endtime = ?,
+                checkouttime = ?
+            WHERE property_id = ?
+        `;
+
+                updateValue = [
+                    starttime,
+                    endtime,
+                    checkouttime,
+                    propertyId
+                ];
+
+            } else {
+                // INSERT
+                updateQuery = `
+            INSERT INTO property_checkout
+            (property_id, starttime, endtime, checkouttime)
+            VALUES (?,?,?,?)
+        `;
+
+                updateValue = [
+                    propertyId,
+                    starttime,
+                    endtime,
+                    checkouttime
+                ];
+            }
+        }
+
+
+
+        if (updateQuery) {
+            await db.promise().query(updateQuery, updateValue);
+        }
+
+        res.json({ status: true, message: "Property updated successfully" });
+    } catch (err) {
+        console.error("Edit property error:", err);
+        res.status(500).json({ status: false, message: "Server error" });
+    }
+});
+
+
+// view property
+
+router.get('/view-property', async (req, res) => {
+    // ="userView"
     const { propertyId, type } = req.query;
     try {
         // 1. Fetch property details
@@ -1608,275 +1809,62 @@ router.get('/view-property-onboarding', async (req, res) => {
 });
 
 
-//// view property-new proper 
-router.get('/view-property', async (req, res) => {
-    const { propertyId } = req.query;
 
-    if (!propertyId) {
-        return res.status(400).json({ status: false, message: "Property ID required" });
-    }
+// router.get('/viewPropertyList', async (req, res) => {
+//     const hostId = req.user.host_id;
+//     const { type } = req.query;
+//     if (!hostId) {
+//         return res.status(400).json({ status: false, message: "Host Not found pls re-login" });
+//     }
 
-    try {
+//     try {
+//         let query = `SELECT p.property_id,p.title,p.status,pi.image_url,p.status , pa.street_address, 
+//         pa.city, pa.district, pa.state_province, pa.postal_code, pa.country FROM properties p
 
-        // =========================
-        // 1️⃣ MAIN PROPERTY
-        // =========================
-        const [propertyRows] = await db.promise().query(
-            `SELECT * FROM properties WHERE property_id = ?`,
-            [propertyId]
-        );
+//     LEFT JOIN property_images pi ON pi.property_id = p.property_id AND pi.is_primary = 1
+//     LEFT JOIN property_addresses pa ON pa.property_id = p.property_id 
+//     WHERE p.host_id = ?
+// `;
 
-        if (!propertyRows.length) {
-            return res.status(404).json({ status: false, message: "Property not found" });
-        }
+//         let queryParams = [hostId];
 
-        const property = propertyRows[0];
+//         if (type == 'pending') {
+//             query += ` AND p.status = 0`;
+//         } else if (type == 'complete') {
+//             query += ` AND p.status = 1`;
+//         }
 
-        // =========================
-        // 2️⃣ RELATED TABLES
-        // =========================
+//         // ✅ If you only want one image even when multiple exist
+//         query += ` GROUP BY p.property_id ORDER BY p.property_id DESC`;
 
-        const [[address = {}]] = await db.promise().query(
-            `SELECT * FROM property_addresses WHERE property_id = ?`,
-            [propertyId]
-        );
+//         // 1. Fetch property details //img ,address
+//         const [property] = await db.promise().query(query, queryParams);
+//         if (!property.length) {
+//             return res.status(200).json({ status: false, message: "Property not found" });
+//         }
 
-        const [[availability = {}]] = await db.promise().query(
-            `SELECT * FROM property_availability WHERE property_id = ?`,
-            [propertyId]
-        );
-
-        const [[booking = {}]] = await db.promise().query(
-            `SELECT * FROM property_booking_settings WHERE property_id = ?`,
-            [propertyId]
-        );
-
-        const [[discount = {}]] = await db.promise().query(
-            `SELECT newlistingpromotion, lastminutediscount, weeklydiscount, monthlydiscount FROM property_discounts WHERE property_id = ?`,
-            [propertyId]
-        );
-
-        const [[descriptionDetails = {}]] = await db.promise().query(
-            `SELECT * FROM property_description_details WHERE property_id = ?`,
-            [propertyId]
-        );
-
-        const [[houseRules = {}]] = await db.promise().query(
-            `SELECT * FROM house_rules WHERE property_id = ?`,
-            [propertyId]
-        );
-
-        const [[cancellationPolicy = {}]] = await db.promise().query(
-            `SELECT * FROM property_cancellation_policy WHERE property_id = ?`,
-            [propertyId]
-        );
-
-        const [[hostProfile = {}]] = await db.promise().query(
-            `SELECT host_id, host_name, profile, created_at FROM host_profiles WHERE host_id = ?`,
-            [property.host_id]
-        );
-
-        const [[hostAddress = {}]] = await db.promise().query(
-            `SELECT * FROM host_addresses WHERE host_id = ?`,
-            [property.host_id]
-        );
-
-        // =========================
-        // 3️⃣ IMAGES
-        // =========================
-        const [imageRows] = await db.promise().query(
-            `SELECT image_url FROM property_images WHERE property_id = ?`,
-            [propertyId]
-        );
-
-        const images = imageRows.map(img => img.image_url);
-
-        // =========================
-        // 4️⃣ AMENITIES
-        // =========================
-        const [amenityRows] = await db.promise().query(`
-            SELECT a.value, a.name, pa.data_key
-            FROM property_amenities pa
-            JOIN amenities a ON pa.amenity_id = a.amenity_id
-            WHERE pa.property_id = ?
-        `, [propertyId]);
-
-        let amenitiesGrouped = {};
-        let amenitiesWithKey = [];
-
-        for (const row of amenityRows) {
-            if (!amenitiesGrouped[row.data_key]) {
-                amenitiesGrouped[row.data_key] = {};
-            }
-            amenitiesGrouped[row.data_key][row.value] = "1";
-            amenitiesWithKey.push({
-                key: row.value,
-                value: "1",
-                name: row.name,
-                category: row.data_key
-            });
-        }
-
-        // =========================
-        // FINAL RESPONSE
-        // =========================
-
-        const data = {
-
-            // BASIC
-            propertyId: property.property_id,
-            title: property.title,
-            reservationType: property.reservation_type,
-
-            // PROPERTY TYPE
-            property_type: {
-                most_like_your_place: property.most_like_your_place,
-                property_type: property.property_type,
-                listing_type: property.listing_type,
-                how_many_floors_in_the_building: property.floor,
-                which_floor_is_the_listing_on: property.floor_listing,
-                year_built: property.year_built,
-                property_size: property.property_size,
-                unit: property.unit
-            },
-
-            // PRICE
-            per_night_price: {
-                price: property.price_per_night
-            },
-
-            // GUESTS
-            number_of_guests: {
-                value: property.max_guests
-            },
-
-            // AVAILABILITY
-            minimum_nights: {
-                value: availability.minimumavailability || 0
-            },
-            maximum_nights: {
-                value: availability.maximumnights || 0
-            },
-            availability: {
-                advance_notice: availability.advancenotice,
-                same_day_advance_notice: availability.samedayadvancenotice,
-                preparation_time: availability.preparationtime,
-                availability_window: availability.availabilitywindow
-            },
-            more_availability: {
-                restricted_check_in: availability.restricted_checkin,
-                restricted_check_out: availability.restricted_checkout
-            },
-
-            // LOCATION
-            location: {
-                street_address: address.street_address,
-                city: address.city,
-                state: address.state_province,
-                postal_code: address.postal_code,
-                country: address.country,
-                latitude: address.latitude,
-                longitude: address.longitude
-            },
-
-            // DESCRIPTION
-            listing_description: {
-                description: descriptionDetails.listingdescription
-            },
-            your_property_details: {
-                details: descriptionDetails.yourproperty
-            },
-            your_property_guest_access_details: {
-                details: descriptionDetails.guestaccessdetails
-            },
-            Interaction_with_guests: {
-                details: descriptionDetails.interactionwithguests
-            },
-
-            // BOOKING
-            booking_setting: {
-                value: booking.instantbook === 1 ? "Use Instant Book" : "Approve all booking"
-            },
-
-            // DISCOUNT
-            discount: {
-                monthly_discount: discount?.monthlydiscount || 0,
-                weekly_discount: discount?.weeklydiscount || 0
-
-            },
-
-
-
-            // HOUSE RULES
-            house_rules: {
-                pets_allowed: houseRules.no_pets == 1 ? "true" : "false",
-                smoking: houseRules.no_smoking == 1 ? "true" : "false",
-                events_allowed: houseRules.no_parties == 1 ? "true" : "false",
-                quiet_hours: houseRules.no_children == 1 ? "true" : "false",
-                checkin_checkout_times: houseRules.check_in_time ? "true" : "false",
-                checkinwindowintime: houseRules.check_in_time,
-                checkoutwindowouttime: houseRules.check_out_time,
-                maxPets: houseRules.max_pets,
-                quietStart: houseRules.quiet_start_time || 0,
-                quietEnd: houseRules.quiet_end_time || 0,
-                commercialAllowed: houseRules.commercial_photography_allowed == 1 ? "true" : "false",
-                checkOutTime: houseRules.checkOutTime,
-                Additional_rules: {
-                    value: houseRules.other_rules
-                }
-            },
-
-            // CANCELLATION
-            standard_policy: {
-                value: cancellationPolicy.standardpolicy
-            },
-            long_term_stay_policy: {
-                value: cancellationPolicy.longtermstaypolicy
-            },
-
-            // HOST
-            host: {
-                host_name: hostProfile.host_name,
-                profile: hostProfile.profile,
-                created_at: hostProfile.created_at,
-                address: hostAddress
-            },
-
-            // IMAGES
-            photo_tour: {
-                images: images
-            },
-
-            // AMENITIES
-            amenities: amenitiesGrouped,
-            amenitiesWithKey
-
-        };
-
-        res.json({
-            status: true,
-            message: "Property fetched successfully",
-            data
-        });
-
-    } catch (err) {
-        console.error("View property error:", err);
-        res.status(500).json({
-            status: false,
-            message: "Server error",
-            error: err.message
-        });
-    }
-});
-
-
+//         res.json({ status: true, message: "Property fetched successfully", data: property });
+//     } catch (err) {
+//         console.error("View property error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
 
 router.get('/viewPropertyList', async (req, res) => {
     const hostId = req.user?.host_id;
     if (!hostId) {
         return res.status(400).json({ status: false, message: "Host not found, please re-login" });
     }
+
     try {
+        // let query = `SELECT p.property_id, p.title, p.status, pi.image_url, pa.street_address, pa.city, 
+        // pa.district,  pa.state_province,  pa.postal_code,  pa.country FROM properties p
+        //     LEFT JOIN property_images pi ON pi.property_id = p.property_id AND pi.is_primary = 1
+        //     LEFT JOIN property_addresses pa ON pa.property_id = p.property_id
+        //     WHERE p.host_id = ?
+        //     GROUP BY p.property_id
+        //     ORDER BY p.property_id DESC
+        // `;
 
         let query = `SELECT 
     p.property_id,
@@ -1933,522 +1921,57 @@ ORDER BY p.property_id DESC;`
 
 
 
+// edit-property listing 
+// router.post('/edit-property-listing', async (req, res) => {
+//     const userId = req.user.user_id;
+//     const hostId = req.user.host_id;
+
+//     if (!hostId) {
+//         return res.status(400).json({ status: false, message: "Host Not found pls re-login" });
+//     }
+
+//     const { type, propertyId, data } = req.body;
+//     if (!type || !propertyId) {
+//         return res.status(400).json({ status: false, message: "Property ID and type are required" });
+//     }
+//     try {
+//         let updateQuery = "";
+//         let updateValue = [];
+//         let dataNew = "";
+
+//         if (type == "title") {
+
+//             updateQuery = `UPDATE properties SET title = ? WHERE host_id = ? AND property_id=?`;
+//             updateValue = [data?.title?.title, hostId, propertyId];
+//         }
+        
+        
+//         if (updateQuery) {
+//             await db.promise().query(updateQuery, updateValue);
+//         }
+
+//         res.json({ status: true, message: "Property updated successfully" });
+//     } catch (err) {
+//         console.error("Edit property error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
 
 
 
-// Edit Property Listing API - Handles individual section updates
-router.post('/edit-property-listing', async (req, res) => {
-    const userId = req.user.user_id;
-    const hostId = req.user.host_id;
 
-    if (!hostId) {
-        return res.status(400).json({ status: false, message: "Host Not found pls re-login" });
-    }
-
-
-    const { type, propertyId, data } = req.body;
-
-    if (!type || !propertyId) {
-        return res.status(400).json({ status: false, message: "Property ID and type are required" });
-    }
-
-    const connection = await dbn.getConnection();
-
-    try {
-
-        let updateQuery = "";
-        let updateValue = [];
-        console.log(data)
-        // Handle different section types based on your data structure
-        switch (type) {
-
-            // case "photo_tour":
-            //     // Handle photo tour images
-            //     if (data.photo_tour && data.photo_tour.images && data.photo_tour.images.length) {
-            //         // Delete existing photos for this property
-            //         await connection.query(`DELETE FROM property_images WHERE property_id=?`, [propertyId]);
-
-            //         // Insert new photos
-            //         for (let i = 0; i < data.photo_tour.images.length; i++) {
-            //             const imageId = data.photo_tour.images[i];
-            //             // Assuming you have a way to get the actual image URL from the ID
-            //             const imageUrl = `${imageId}`; // Adjust this based on your storage logic
-
-            //             await connection.query(
-            // `INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
-            // [propertyId, imageUrl, i === 0 ? 1 : 0]
-            //             );
-            //         }
-            //     }
-            //     break;
-
-            case "title":
-                updateQuery = `UPDATE properties SET title = ? WHERE property_id=? AND host_id=?`;
-                updateValue = [data?.title?.title, propertyId, hostId];
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "property_type":
-                const propType = data?.property_type;
-                updateQuery = `UPDATE properties SET 
-                    property_type = ?,
-                    most_like_your_place = ?,
-                    listing_type = ?,
-                    floor = ?,
-                    floor_listing = ?,
-                    year_built = ?,
-                    property_size = ?,
-                    unit = ?
-                    WHERE property_id=? AND host_id=?`;
-                updateValue = [
-                    propType?.property_type || "",
-                    propType?.most_like_your_place || "",
-                    propType?.listing_type || "",
-                    propType?.how_many_floors_in_the_building || 0,
-                    propType?.which_floor_is_the_listing_on || 0,
-                    propType?.year_built || 0,
-                    propType?.property_size || 0,
-                    propType?.unit || "",
-                    propertyId,
-                    hostId
-                ];
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "per_night_price":
-                updateQuery = `UPDATE properties SET price_per_night = ? WHERE property_id=? AND host_id=?`;
-                updateValue = [data?.per_night_price?.per_night_price || 0, propertyId, hostId];
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "weekly_discount":
-                // Handle discounts - assuming you have a property_discounts table
-                const discount = data?.weekly_discount;
-
-                // Check if discount record exists
-                const [existingDiscount] = await connection.query(
-                    "SELECT id FROM property_discounts WHERE property_id = ?",
-                    [propertyId]
-                );
-
-                if (existingDiscount.length > 0) {
-                    updateQuery = `UPDATE property_discounts SET weeklydiscount = ? WHERE property_id = ?`;
-                    updateValue = [discount?.weekly_discount || 0, propertyId];
-                } else {
-                    updateQuery = `INSERT INTO property_discounts (property_id, weeklydiscount) VALUES (?, ?)`;
-                    updateValue = [propertyId, discount?.weekly_discount || 0];
-                }
-                await connection.query(updateQuery, updateValue);
-                break;
-            case "monthly_discount":
-                const monthly_discount = data?.monthly_discount;
-
-                // Check if discount record exists
-                const [monthlyDiscount] = await connection.query(
-                    "SELECT id FROM property_discounts WHERE property_id = ?",
-                    [propertyId]
-                );
-
-                if (monthlyDiscount.length > 0) {
-                    updateQuery = `UPDATE property_discounts SET monthlydiscount = ? WHERE property_id = ?`;
-                    updateValue = [monthly_discount?.monthly_discount || 0, propertyId];
-                } else {
-                    updateQuery = `INSERT INTO property_discounts (property_id, monthlydiscount) VALUES (?, ?)`;
-                    updateValue = [propertyId, monthly_discount?.monthly_discount || 0];
-                }
-
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "minimum_nights":
-            case "maximum_nights":
-                // Handle in property_availability table
-                const nightsValue = data[type][type] || 0;
-
-                const field = type === "minimum_nights" ? "minimumavailability" : "maximumnights";
-
-                // Check if availability record exists
-                const [existingAvail] = await connection.query(
-                    "SELECT id FROM property_availability WHERE property_id = ?",
-                    [propertyId]
-                );
-
-                if (existingAvail.length > 0) {
-                    updateQuery = `UPDATE property_availability SET ${field} = ? WHERE property_id = ?`;
-                    updateValue = [nightsValue, propertyId];
-                } else {
-                    updateQuery = `INSERT INTO property_availability (property_id, ${field}) VALUES (?, ?)`;
-                    updateValue = [propertyId, nightsValue];
-                }
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "availability":
-                const avail = data?.availability;
-                // Check if availability record exists
-                const [availCheck] = await connection.query(
-                    "SELECT id FROM property_availability WHERE property_id = ?",
-                    [propertyId]
-                );
-
-
-                if (availCheck.length > 0) {
-                    updateQuery = `UPDATE property_availability SET 
-                        advancenotice = ?,
-                        samedayadvancenotice = ?,
-                        preparationtime = ?,
-                        availabilitywindow = ?
-                        WHERE property_id = ?`;
-                    updateValue = [
-                        avail?.advance_notice || null,
-                        avail?.same_day_advance_notice || null,
-                        avail?.preparation_time || null,
-                        avail?.availability_window || null,
-                        propertyId
-                    ];
-                } else {
-                    updateQuery = `INSERT INTO property_availability 
-                        (property_id, advancenotice, samedayadvancenotice, preparationtime, availabilitywindow)
-                        VALUES (?, ?, ?, ?, ?)`;
-                    updateValue = [
-                        propertyId,
-                        avail?.advance_notice || null,
-                        avail?.same_day_advance_notice || null,
-                        avail?.preparation_time || null,
-                        avail?.availability_window || null
-                    ];
-                }
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "more_availability":
-                const moreAvail = data?.more_availability;
-
-                // Check if availability record exists
-                const [moreAvailCheck] = await connection.query(
-                    "SELECT id FROM property_availability WHERE property_id = ?",
-                    [propertyId]
-                );
-
-                if (moreAvailCheck.length > 0) {
-                    updateQuery = `UPDATE property_availability SET 
-                        restricted_checkin = ?,
-                        restricted_checkout = ?
-                        WHERE property_id = ?`;
-                    updateValue = [
-                        moreAvail?.restricted_check_in || null,
-                        moreAvail?.restricted_check_out || null,
-                        propertyId
-                    ];
-                } else {
-                    updateQuery = `INSERT INTO property_availability 
-                        (property_id, restricted_checkin, restricted_checkout)
-                        VALUES (?, ?, ?)`;
-                    updateValue = [
-                        propertyId,
-                        moreAvail?.restricted_check_in || null,
-                        moreAvail?.restricted_check_out || null
-                    ];
-                }
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "number_of_guests":
-                updateQuery = `UPDATE properties SET max_guests = ? WHERE property_id=? AND host_id=?`;
-                updateValue = [data?.number_of_guests?.number_of_guests || 0, propertyId, hostId];
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "listing_description":
-            case "your_property_details":
-            case "your_property_guest_access_details":
-            case "Interaction_with_guests":
-                // Handle in property_description_details table
-                let descField = "";
-                let descValue = "";
-
-                switch (type) {
-                    case "listing_description":
-                        descField = "listingdescription";
-                        descValue = data?.listing_description?.listing_description || "";
-                        break;
-                    case "your_property_details":
-                        descField = "yourproperty";
-                        descValue = data?.your_property_details?.your_property_details || "";
-                        break;
-                    case "your_property_guest_access_details":
-                        descField = "guestaccessdetails";
-                        descValue = data?.your_property_guest_access_details?.your_property_guest_access_details || "";
-                        break;
-                    case "Interaction_with_guests":
-                        descField = "interactionwithguests";
-                        descValue = data?.Interaction_with_guests?.Interaction_with_guests || "";
-                        break;
-                }
-
-                // Check if description record exists
-                const [descCheck] = await connection.query(
-                    "SELECT id FROM property_description_details WHERE property_id = ?",
-                    [propertyId]
-                );
-
-                if (descCheck.length > 0) {
-                    updateQuery = `UPDATE property_description_details SET ${descField} = ? WHERE property_id = ?`;
-                    updateValue = [descValue, propertyId];
-                } else {
-                    updateQuery = `INSERT INTO property_description_details (property_id, ${descField}) VALUES (?, ?)`;
-                    updateValue = [propertyId, descValue];
-                }
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "amenities":
-                // Handle amenities
-                if (data.amenities && data.amenities.amenities) {
-                    // Delete existing amenities
-                    await connection.query(`DELETE FROM property_amenities WHERE property_id=? AND data_key='amenities'`, [propertyId]);
-
-                    // Split comma-separated amenities and insert
-                    const amenitiesList = data.amenities.amenities;
-                    for (const amenity of amenitiesList) {
-                        const [rows] = await connection.query(
-                            `SELECT amenity_id FROM amenities WHERE name LIKE ? OR value LIKE ?`,
-                            [`%${amenity}%`, `%${amenity}%`]
-                        );
-
-                        if (rows.length) {
-                            await connection.query(
-                                `INSERT INTO property_amenities (property_id, amenity_id, data_key) VALUES (?,?,?)`,
-                                [propertyId, rows[0].amenity_id, "amenities"]
-                            );
-                        }
-                    }
-                }
-                break;
-
-            case "location":
-                const loc = data?.location?.location;
-
-                // Check if address record exists
-                const [addrCheck] = await connection.query(
-                    "SELECT address_id FROM property_addresses WHERE property_id = ?",
-                    [propertyId]
-                );
-
-                if (addrCheck.length > 0) {
-                    updateQuery = `UPDATE property_addresses SET 
-                        street_address = ?,
-                        city = ?,
-                        state_province = ?,
-                        postal_code = ?,
-                        country = ?,
-                        latitude = ?,
-                        longitude = ?
-                        WHERE property_id = ?`;
-                    updateValue = [
-                        loc?.street || "",
-                        loc?.city || "",
-                        loc?.state || "",
-                        loc?.postalCode || "",
-                        loc?.country || "",
-                        loc?.latitude || "",
-                        loc?.longitude || "",
-                        propertyId
-                    ];
-                } else {
-                    updateQuery = `INSERT INTO property_addresses 
-                        (property_id, street_address, city, state_province, postal_code, country, latitude, longitude)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-                    updateValue = [
-                        propertyId,
-                        loc?.street_address || "",
-                        loc?.city || "",
-                        loc?.state || "",
-                        loc?.postal_code || "",
-                        loc?.country || "",
-                        loc?.latitude || "",
-                        loc?.longitude || ""
-                    ];
-                }
-                await connection.query(updateQuery, updateValue);
-                break;
-            case "booking_setting":
-                const bookingVal = data?.booking_setting?.booking_setting === "Use Instant Book" ? 1 : 0;
-
-                // Check if booking settings record exists
-                const [bookingCheck] = await connection.query(
-                    "SELECT id FROM property_booking_settings WHERE property_id = ?",
-                    [propertyId]
-                );
-
-                if (bookingCheck.length > 0) {
-                    updateQuery = `UPDATE property_booking_settings SET instantbook = ? WHERE property_id = ?`;
-                    updateValue = [bookingVal, propertyId];
-                } else {
-                    updateQuery = `INSERT INTO property_booking_settings (property_id, instantbook) VALUES (?, ?)`;
-                    updateValue = [propertyId, bookingVal];
-                }
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "house_rules":
-                const rules = data?.house_rules;
-                // Map your data structure to database fields
-                const no_pets = rules?.petsAllowed
-                const no_smoking = rules?.smokingAllowed; // smoking false means no smoking allowed
-                const no_parties = rules?.eventsAllowed;
-                const no_children = rules?.quietHoursAllowed;
-
-                let check_in_time = null;
-                let check_out_time = null;
-
-                if (rules?.checkInAllowed) {
-                    check_in_time = rules?.checkInStart || null;
-                    check_out_time = rules?.checkInEnd || null;
-                } //checkouttime
-
-                // Check if house rules record exists
-                const [rulesCheck] = await connection.query(
-                    "SELECT rule_id FROM house_rules WHERE property_id = ?",
-                    [propertyId]
-                );
-
-                if (rulesCheck.length > 0) {
-                    updateQuery = `UPDATE house_rules SET 
-                        no_pets = ?,
-                        max_pets=?,
-                        no_smoking = ?,
-                        no_parties = ?,
-                        no_children = ?,
-                        check_in_time = ?,
-                        check_out_time = ?,
-                        other_rules = ?,
-                        quiet_start_time=?,
-                        quiet_end_time=?,
-                        commercial_photography_allowed=? ,
-                        checkOutTime=?
-                        WHERE property_id = ?`;
-                    updateValue = [
-                        no_pets,
-                        rules?.maxPets || 0,
-                        no_smoking,
-                        no_parties,
-                        no_children,
-                        check_in_time,
-                        check_out_time,
-                        rules?.Additional_rules?.value || null,
-                        rules?.quietStart,
-                        rules?.quietEnd,
-                        rules?.commercialAllowed,
-                        rules?.checkOutTime,
-                        propertyId
-                    ];
-
-                } else {
-                    updateQuery = `INSERT INTO house_rules 
-                        (property_id, no_pets,max_pets, no_smoking, no_parties, no_children, check_in_time, check_out_time, other_rules,quiet_start_time, quiet_end_time, commercial_photography_allowed,checkOutTime)
-                        VALUES (?, ?, ?,?, ?, ?, ?, ?, ? ,?,?,?,?)`;
-                    updateValue = [
-                        propertyId,
-                        no_pets,
-                        rules?.max_pets || 0,
-                        no_smoking,
-                        no_parties,
-                        no_children,
-                        check_in_time,
-                        check_out_time,
-                        rules?.Additional_rules?.value || null,
-                        rules?.quietStart,
-                        rules?.quietEnd,
-                        rules?.commercialAllowed,
-                        rules?.checkOutTime,
-                    ];
-                }
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            case "cancellation_policy":
-                // Handle cancellation policies
-                const policyValue = data?.cancellation_policy;
-
-                // Check if policy record exists
-                const [policyCheck] = await connection.query(
-                    "SELECT id FROM property_cancellation_policy WHERE property_id = ?",
-                    [propertyId]
-                );
-
-                if (policyCheck.length > 0) {
-                    updateQuery = `UPDATE property_cancellation_policy SET standardpolicy = ?,longtermstaypolicy=? WHERE property_id = ?`;
-                    updateValue = [policyValue?.standardPolicy, policyValue?.longTermPolicy, propertyId];
-                } else {
-                    updateQuery = `INSERT INTO property_cancellation_policy (property_id, standardpolicy,longtermstaypolicy) VALUES (?,?, ?)`;
-                    updateValue = [propertyId, policyValue?.standardPolicy, policyValue?.longTermPolicy,];
-                }
-                await connection.query(updateQuery, updateValue);
-                break;
-
-            default:
-                // If no matching case, just return success (no changes made)
-                break;
-        }
-
-        await connection.commit();
-
-        res.json({
-            status: true,
-            message: "Property section updated successfully",
-            propertyId: propertyId,
-            section: type
-        });
-
-    } catch (err) {
-        await connection.rollback();
-        console.error("Edit property listing error:", err);
-        res.status(500).json({
-            status: false,
-            message: "Server error while updating property section",
-            error: err.message
-        });
-    } finally {
-        connection.release();
-    }
-});
-router.post("/deletePropertyImage", async (req, res) => {
-    try {
-
-        const { propertyId, imageUrl } = req.body;
-
-        if (!propertyId || !imageUrl) {
-            return res.status(400).json({
-                status: false,
-                message: "propertyId and imageUrl are required"
-            });
-        }
-        const deleted = await deletePropertyImage(propertyId, imageUrl);
-        console.log(deleted);
-        if (!deleted) {
-            return res.status(404).json({
-                status: false,
-                message: "Image not found"
-            });
-        }
-
-        res.json({
-            status: true,
-            message: "Image deleted successfully"
-        });
-
-    } catch (err) {
-        console.error("Delete Property Image Error:", err);
-        res.status(500).json({
-            status: false,
-            message: "Server error"
-        });
-    }
-});
 
 // Export the router
 module.exports = router;
+
+
+
+
+
+
+
+
+
 
 
 

@@ -20,7 +20,6 @@ router.get("/user", async (req, res) => {
 });
 
 
-
 router.put("/user/update", async (req, res) => {
   const userId = req.user.user_id;
   const { name, email, phone_number, about } = req.body;
@@ -39,7 +38,6 @@ router.put("/user/update", async (req, res) => {
 });
 
 // Address
-
 router.get("/userAddress", async (req, res) => {
   const userId = req.user.user_id;
 
@@ -90,7 +88,6 @@ router.put("/updateAddress", async (req, res) => {
     res.status(500).json({ status: false, message: "Server error" });
   }
 });
-
 
 // Export the router
 module.exports = router;

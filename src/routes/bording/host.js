@@ -213,22 +213,6 @@ router.post("/toggle-verification-status", async (req, res) => {
 // update 
 // //update host_profiles
 
-// router.post("/update-host-profile", async (req, res) => {
-//     const userId = req.user.user_id;
-//     const { host_id, headline, bio, language_spoken, response_time, host_since, govt_id_verified, profile_complete } = req.body;
-
-//     try {
-//         const query = "UPDATE host_profiles SET headline = ?, bio = ?, language_spoken = ?, response_time = ?, host_since = ?, govt_id_verified = ?, profile_complete = ? WHERE host_id = ?";
-//         const data = [headline, bio, language_spoken, response_time, host_since, govt_id_verified, profile_complete, host_id];
-
-//         await db.promise().query(query, data);
-//         res.json({ status: true, message: "Host profile updated successfully" });
-//     } catch (err) {
-//         console.error("Update host profile error:", err);
-//         res.status(500).json({ status: false, message: "Server error" });
-//     }
-// });
-
 router.post("/update-host-profile", async (req, res) => {
     const {
         host_id,
@@ -306,8 +290,6 @@ router.post("/addHostAddress", async (req, res) => {
 });
 
 // make host 
-
-
 router.post("/makeHost", async (req, res) => {
     const userId = req.user.user_id;
     const { host_name } = req.body;
@@ -356,23 +338,6 @@ router.post("/makeHost", async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
-// router.post("/addBroker", async (req, res) => {
-//     const { type, profile, host_name, email, phone_number, headline, bio, language_spoken, profile_complete, status } = req.body;
-//     try {
-//         const query = "INSERT INTO host_profiles (type, profile, host_name, email, phone_number, headline, bio, language_spoken,profile_complete, status ) VALUES (?,?,?,?,?,?,?,?,?,?)";
-//         const data = [type, profile, host_name, email, phone_number, headline, bio, language_spoken, profile_complete, status];
-
-//         await db.promise().query(query, data);
-//         // send token in response
-//         res.json({ status: true, message: "Profile created successfully" });
-//     } catch (err) {
-//         console.error("Make host error:", err);
-//         res.status(500).json({ status: false, message: "Server error" });
-//     }
-// });
-
-// host_verifications
 
 router.post("/addBroker", async (req, res) => {
     const {
@@ -464,9 +429,6 @@ router.post("/addBroker", async (req, res) => {
     }
 });
 
-
-
-
 router.post("/addHostVerification", upload.single("document"), async (req, res) => {
     const userId = req.user.user_id;
     const document_type = req.body.document_type;
@@ -491,8 +453,6 @@ router.post("/addHostVerification", upload.single("document"), async (req, res) 
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
-
 
 
 // Route to get user data
@@ -538,8 +498,6 @@ router.get("/getUserData", async (req, res) => {
 });
 
 
-
-
 // host check 
 router.post("/checkHost", async (req, res) => {
     const user = req.user;
@@ -552,5 +510,6 @@ router.post("/checkHost", async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
+
 // Export the router
 module.exports = router;    

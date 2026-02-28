@@ -14,7 +14,6 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-
 router.get("/get", async (req, res) => {
     const userId = req.user.user_id;
     const { page = 1, limit = 10, search = "", status = "" } = req.query;
@@ -150,8 +149,6 @@ router.get("/addressGet", async (req, res) => {
     }
 });
 
-
-
 // property_images   propertyImages
 router.post("/propertyImages", async (req, res) => {
     const userId = req.user.user_id;
@@ -252,88 +249,7 @@ router.post("/favourites/add", async (req, res) => {
 
 });
 
-// router.get('/favourites', async (req, res) => {
-//     const userId = req.user.user_id;
 
-//     const { page = 1, limit = 10, search = "", sortBy = "price_per_night", sortOrder = "asc", latitude, longitude, radius = 5 } = req.query;
-
-//     try {
-//         let query = `
-//             SELECT p.property_id, p.title,p.price_per_night, pa.street_address, pa.city, p.latitude, p.longitude,p.weekday_price,p.weekend_price,
-//                    pa.state_province, pa.postal_code, pa.country, GROUP_CONCAT(DISTINCT a.name) AS amenities,
-//                    GROUP_CONCAT(DISTINCT pi.image_url) AS images
-//             FROM properties p
-//             JOIN property_addresses pa ON p.property_id = pa.property_id
-//             inner Join favourites As fav ON fav.property_id = p.property_id AND fav.user_id = ?
-//             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
-//             LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
-//             LEFT JOIN property_images pi ON p.property_id = pi.property_id
-//             WHERE 1=1
-//         `;
-//         const queryParams = [userId];
-//         if (search) {
-//             query += " AND (p.title LIKE ? OR p.description LIKE ? OR pa.street_address LIKE ?)";
-//             const searchPattern = `%${search}%`;
-//             queryParams.push(searchPattern, searchPattern, searchPattern);
-//         }
-//         if (latitude && longitude) {
-//             query += ` AND ST_Distance_Sphere(
-//                         point(pa.longitude, pa.latitude),
-//                         point(?, ?)
-//                     ) <= ? * 1000`;
-//             queryParams.push(parseFloat(longitude), parseFloat(latitude), parseFloat(radius));
-//         }
-
-//         query += ` GROUP BY p.property_id ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`;
-//         queryParams.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
-
-//         const [properties] = await db.promise().query(query, queryParams);
-
-//         if (properties.length === 0) {
-//             return res.status(200).json({ status: false, message: "No properties found" });
-//         }
-
-//         let countQuery = `
-//             SELECT COUNT(DISTINCT p.property_id) as total
-//             FROM properties p
-//             JOIN property_addresses pa ON p.address_id = pa.address_id 
-//             inner Join favourites As fav ON fav.property_id = p.property_id AND fav.user_id = ?
-//             LEFT JOIN property_amenities pa2 ON p.property_id = pa2.property_id
-//             LEFT JOIN amenities a ON pa2.amenity_id = a.amenity_id
-//         `;
-
-//         if (search) {
-//             countQuery += " WHERE (p.title LIKE ? OR p.description LIKE ? OR pa.street_address LIKE ?)";
-//         } if (latitude && longitude) {
-//             countQuery += ` AND ST_Distance_Sphere(
-//                             point(pa.longitude, pa.latitude),
-//                             point(?, ?)
-//                         ) <= ? * 1000`;
-//             countParams.push(parseFloat(longitude), parseFloat(latitude), parseFloat(radius));
-//         }
-
-//         const [countResult] = await db.promise().query(countQuery, search ? [userId, searchPattern, searchPattern, searchPattern] : [userId]);
-//         const formattedProperties = await Promise.all(
-//             properties.map(async (p) => ({
-//                 ...p,
-//                 amenities: p.amenities ? p.amenities.split(",") : [],
-//                 images: p.images ? p.images.split(",") : [],
-//                 favourite: await favouriteCheck(userId, p.property_id)
-//             }))
-//         );
-
-//         res.json({
-//             status: true,
-//             data: formattedProperties,
-//             total: countResult[0].total,
-//             page: parseInt(page),
-//             limit: parseInt(limit)
-//         });
-//     } catch (err) {
-//         console.error("Get all properties error:", err);
-//         res.status(500).json({ status: false, message: "Server error" });
-//     }
-// });
 router.get('/favourites', async (req, res) => {
     try {
         const userId = req.user.user_id;
@@ -508,24 +424,6 @@ router.get('/favourites', async (req, res) => {
         });
     }
 });
-
-const favouriteCheck = async (userId, propertyId) => {
-    try {
-        const [rows] = await db.promise().query(
-            `SELECT user_id FROM favourites WHERE user_id = ? AND property_id = ? LIMIT 1`,
-            [userId, propertyId]
-        );
-
-        if (rows.length > 0) {
-            return true;  // Property is favourited
-        } else {
-            return false; // Not in favourites
-        }
-    } catch (err) {
-        console.error("Error checking favourite:", err);
-        return false;
-    }
-};
 
 // Export the router
 module.exports = router;

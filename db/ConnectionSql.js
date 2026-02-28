@@ -6,6 +6,7 @@ const db = mysql.createConnection({
     password: 'StrongPass@#123',
     database: 'mydb'
 });
+
 // const db = mysql.createConnection({
 //     host: '103.175.163.186',
 //     user: 'rentiinew',
