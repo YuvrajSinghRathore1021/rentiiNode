@@ -412,13 +412,12 @@ router.get('/getPropertyDetails', async (req, res) => {
 
 
 // Get all bookings for a user
-
 router.get('/getUserBookings', async (req, res) => {
-    const userId = req?.user?.user_id || 0;
+    const userId = req.user.user_id;
     const { page = 1, limit = 10 } = req.query;
 
     try {
-        const query = `
+        let query = `
             SELECT 
                 b.booking_id,
                 b.property_id,
@@ -437,26 +436,26 @@ router.get('/getUserBookings', async (req, res) => {
                 pa.latitude,
                 pa.longitude,
 
-                GROUP_CONCAT(pi.image_url) AS images
+                 (
+                    SELECT GROUP_CONCAT(DISTINCT pi.image_url SEPARATOR ', ')
+                    FROM property_images pi
+                    WHERE pi.property_id = p.property_id
+                ) AS images
 
             FROM bookings b
             JOIN properties p ON b.property_id = p.property_id
             LEFT JOIN property_addresses pa ON pa.property_id = p.property_id
-            LEFT JOIN property_images pi ON pi.property_id = p.property_id
 
             WHERE b.guest_id = ?
-            GROUP BY b.booking_id
             ORDER BY b.created_at DESC
             LIMIT ? OFFSET ?
         `;
 
-        const [bookings] = await db
-            .promise()
-            .query(query, [
-                userId,
-                parseInt(limit),
-                (parseInt(page) - 1) * parseInt(limit)
-            ]);
+
+        const [bookings] = await db.promise().query(query, [
+            userId, parseInt(limit),
+            (parseInt(page) - 1) * parseInt(limit)
+        ]);
 
         if (bookings.length === 0) {
             return res.status(200).json({
@@ -473,7 +472,7 @@ router.get('/getUserBookings', async (req, res) => {
             check_in_date: item.check_in_date,
             check_out_date: item.check_out_date,
             total_price: item.total_price,
-            status: item.status,
+            status: item.status == 3 ? "cancelled" : "completed",
             guests_count: item.guests_count,
 
             images: item.images ? item.images.split(",") : [],
@@ -549,7 +548,6 @@ router.get('/review/view', async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
 
 // Get house rules for a property
 router.get('/getHouseRules', async (req, res) => {
@@ -632,7 +630,6 @@ router.get('/getPropertyImages', async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
 
 // Get property availability
 router.get('/getPropertyAvailability', async (req, res) => {
@@ -782,7 +779,6 @@ router.get('/searchProperties', async (req, res) => {
 }
 );
 
-
 //add user review
 router.post('/addUserReview', async (req, res) => {
     const { booking_id, rating, comment } = req.body;
@@ -812,7 +808,6 @@ router.post('/addUserReview', async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
 
 // user booking handal 
 router.post('/userBooking', async (req, res) => {
@@ -858,7 +853,6 @@ router.post('/userBooking', async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
 
 // view proparty reviews by property_id
 router.get('/getPropertyReviews', async (req, res) => {
@@ -1115,9 +1109,6 @@ router.get('/getProperty', async (req, res) => {
 });
 
 
-
-
-
 // ///////new price 
 router.post('/pricing', async (req, res) => {
     const { property_id, startDate, endDate, adults, children, infants } = req.body;
@@ -1166,148 +1157,748 @@ router.post('/pricing', async (req, res) => {
 
 
 
-/////// get book proparty details //////
-
 router.get('/propertybookingDetails', async (req, res) => {
     const { booking_id } = req.query;
-
     try {
-        const [bookingRows] = await db.query(`
-      SELECT 
-        b.booking_id,
-        b.check_in_date,
-        b.check_out_date,
-        b.check_in_time,
-        b.check_out_time,
-        b.guests_count,
 
-        p.property_id,
-        p.title,
+        const [orderInfo] = await db.promise().query(`
+            SELECT 
+                b.booking_id,
+                b.property_id,
+                b.order_id,
+                b.check_in_date,
+                b.check_out_date,
+                b.total_price,
+                b.status,
+                b.guests_count,
+                b.adults,b.children,b.infants,
+                b.created_at as booking_created_at,
+                
+                -- Payment info
+                p.payment_id,
+                p.amount as payment_amount,
+                p.payment_method,
+                p.status as payment_status
+                
+            FROM bookings b
+            LEFT JOIN payments p ON b.booking_id = p.booking_id
+            WHERE b.booking_id = ?
+            ORDER BY b.created_at DESC
+            LIMIT 1
+        `, [booking_id]);
+        let propertyId = orderInfo[0].property_id
 
-        u.name AS guest_name,
-        u.profile_picture_url AS guest_image,
+        if (!propertyId) {
+            return res.status(400).json({
+                status: false,
+                message: "Property ID is required"
+            });
+        }
+        // 1. Get property basic details with place information
+        const [propertyBasic] = await db.promise().query(`
+            SELECT 
+                p.property_id,
+                p.title,
+                p.description,
+                p.property_type,
+                p.listing_type,
+                p.max_guests,
+                p.price_per_night,
+                p.weekend_price,
+                p.created_at,
+                                
+                -- Address details
+                pa.street_address,
+                pa.city,
+                pa.state_province,
+                pa.postal_code,
+                pa.country,
+                pa.latitude,
+                pa.longitude           
+                 
+            FROM properties p
+            LEFT JOIN property_addresses pa ON p.property_id = pa.property_id
+            WHERE p.property_id = ?
+        `, [propertyId]);
 
-        pa.latitude,
-        pa.longitude,
-        CONCAT(pa.street_address, ', ', pa.city, ', ', pa.country) AS full_address,
-
-        pc.standardpolicy,
-
-        pay.transaction_id,
-        pay.payment_method,
-        pay.amount,
-        pay.status AS payment_status,
-
-        hp.host_name,
-        hp.profile,
-        hp.phone_number,
-        hp.email,
-
-        fav.property_id AS favourite_property
-
-      FROM bookings b
-      JOIN properties p ON p.property_id = b.property_id
-      JOIN users u ON u.user_id = b.guest_id
-      LEFT JOIN property_addresses pa ON pa.property_id = p.property_id
-      LEFT JOIN property_cancellation_policy pc ON pc.property_id = p.property_id
-      LEFT JOIN payments pay ON pay.booking_id = b.booking_id
-      LEFT JOIN host_profiles hp ON hp.host_id = p.host_id
-      LEFT JOIN favourites fav 
-        ON fav.property_id = p.property_id AND fav.user_id = b.guest_id
-      WHERE b.booking_id = ?
-      LIMIT 1
-    `, [booking_id]);
-
-        if (bookingRows.length === 0) {
-            return res.status(404).json({ message: "Booking not found" });
+        if (propertyBasic.length === 0) {
+            return res.json({
+                status: false,
+                message: "Property not found"
+            });
         }
 
-        const data = bookingRows[0];
+        // 2. Get property images
+        const [propertyImages] = await db.promise().query(`
+            SELECT image_url, is_primary, caption 
+            FROM property_images 
+            WHERE property_id = ?
+            ORDER BY is_primary DESC
+        `, [propertyId]);
 
-        /** PROPERTY IMAGE */
-        const [[image]] = await db.query(`
-      SELECT image_url 
-      FROM property_images 
-      WHERE property_id = ? AND is_primary = 1
-      LIMIT 1
-    `, [data.property_id]);
+        // 3. Get check-in/check-out times
+        const [checkinTimes] = await db.promise().query(`
+            SELECT starttime, endtime, checkouttime
+            FROM property_checkin 
+            WHERE property_id = ?
+        `, [propertyId]);
 
-        /** WIFI AMENITIES */
-        const [wifi] = await db.query(`
-      SELECT a.name, a.value 
-      FROM amenities a
-      JOIN property_amenities pa ON pa.amenity_id = a.amenity_id
-      WHERE pa.property_id = ? AND a.category = 'wifi'
-    `, [data.property_id]);
+        // 4. Get house rules
+        const [houseRules] = await db.promise().query(`
+            SELECT 
+                no_pets,
+                no_smoking,
+                no_parties,
+                no_children,
+                check_in_time,
+                check_out_time,
+                other_rules
+            FROM house_rules 
+            WHERE property_id = ?
+        `, [propertyId]);
 
-        /** HOUSE RULES */
-        const [[rules]] = await db.query(`
-      SELECT * FROM property_houserules WHERE property_id = ?
-    `, [data.property_id]);
+        // 5. Get amenities (house offers)
+        const [amenities] = await db.promise().query(`
+            SELECT a.name, a.value, a.category, a.icon_class
+            FROM property_amenities pa
+            JOIN amenities a ON pa.amenity_id = a.amenity_id
+            WHERE pa.property_id = ?
+        `, [propertyId]);
 
-        /** RESPONSE */
-        let responseData = {
-            image: image?.image_url || null,
+        // 6. Get cancellation policy
+        const [cancellationPolicy] = await db.promise().query(`
+            SELECT standardpolicy, longtermstaypolicy
+            FROM property_cancellation_policy 
+            WHERE property_id = ?
+        `, [propertyId]);
 
-            isFavourite: !!data.favourite_property,
-            favouriteID: data.favourite_property || null,
+        // 7. Get host details
+        const [hostDetails] = await db.promise().query(`
+            SELECT 
+                hp.host_id,
+                hp.host_name,
+                hp.email as host_email,
+                hp.phone_number as host_phone,
+                hp.headline,
+                hp.bio,
+                hp.language_spoken,
+                hp.response_time,
+                hp.host_since,
+                hp.govt_id_verified,
+                hp.profile as profile_picture,
+                
+                -- Host address
+                ha.country as host_country,
+                ha.city as host_city,
+                ha.street_address as host_street_address,
+                
+                -- User details
+                u.name as user_name,
+                u.profile_picture_url as user_profile_picture,
+                u.about as user_about,
+                u.is_verified_email
+                
+            FROM properties p
+            JOIN host_profiles hp ON p.host_id = hp.host_id
+            LEFT JOIN host_addresses ha ON hp.host_id = ha.host_id
+            LEFT JOIN users u ON hp.user_id = u.user_id
+            WHERE p.property_id = ?
+        `, [propertyId]);
 
-            checkIn: `${data.check_in_date} ${data.check_in_time}`,
-            checkOut: `${data.check_out_date} ${data.check_out_time}`,
 
-            address: {
-                latitude: data.latitude,
-                longitude: data.longitude,
-                address: data.full_address
+
+        // 9. Generate confirmation code (you can generate based on property ID + timestamp)
+        const confirmationCode = Math.floor(10000 + Math.random() * 90000).toString();
+
+        // 10. Format house rules array
+        const formattedHouseRules = [];
+        if (houseRules.length > 0) {
+            const rules = houseRules[0];
+            if (rules.no_pets === 1) formattedHouseRules.push("No pets");
+            if (rules.no_smoking === 1) formattedHouseRules.push("No smoking");
+            if (rules.no_parties === 1) formattedHouseRules.push("No parties/events");
+            if (rules.no_children === 1) formattedHouseRules.push("Not suitable for children");
+            if (rules.other_rules) formattedHouseRules.push(rules.other_rules);
+        }
+
+        // 11. Format check-in/out times
+        let checkInTime = "3:00 PM"; // default
+        let checkOutTime = "11:00 AM"; // default
+
+        if (checkinTimes.length > 0) {
+            if (checkinTimes[0].starttime) checkInTime = checkinTimes[0].starttime;
+            if (checkinTimes[0].checkouttime) checkOutTime = checkinTimes[0].checkouttime;
+        }
+
+        // 12. Format the response according to your structure
+        const responseData = [{
+            place_details: {
+                place_images: propertyImages.map(img => img.image_url),
+                check_in: checkInTime,
+                check_out: checkOutTime,
+                address: {
+                    street_address: propertyBasic[0]?.street_address,
+                    city: propertyBasic[0]?.city,
+                    state_province: propertyBasic[0]?.state_province,
+                    postal_code: propertyBasic[0]?.postal_code,
+                    country: propertyBasic[0]?.country,
+                    latitude: propertyBasic[0]?.latitude,
+                    longitude: propertyBasic[0]?.longitude
+                },
+                things_to_know: houseRules[0]?.other_rules || "No specific rules",
+                your_place: propertyBasic[0].street_address || "Address",
+                latitude: propertyBasic[0].latitude,
+                longitude: propertyBasic[0].longitude,
             },
-
-            reservationDetails: {
-                guests: {
-                    name: data.guest_name,
-                    image: data.guest_image
-                }
+            reservation_details: {
+                number_of_guests: propertyBasic[0].max_guests?.toString() || "0",
+                confirmation_code: confirmationCode,
+                cancellation_policy: cancellationPolicy[0]?.standardpolicy || "Flexible"
             },
-
-            confirmationCode: data.booking_id,
-            cancellationPolicy: data.standardpolicy,
-            receipt: data.transaction_id,
-            checkInMethod: "self check-in",
-
-            wifiDetails: wifi,
-            houseRules: rules || {},
-
-            hostDetails: {
-                name: data.host_name,
-                profile: data.profile,
-                phone: data.phone_number,
-                email: data.email
+            check_in_out: {
+                check_in_method: "keypad", // You can fetch this from your database if available
+                how_to_get_inside: houseRules[0]?.other_rules || "Check-in instructions will be provided"
             },
+            house_offers: amenities.map(a => a.name),
+            house_rules: formattedHouseRules,
+            host_details: hostDetails.length > 0 ? {
+                name: hostDetails[0].host_name || hostDetails[0].user_name,
+                email: hostDetails[0].host_email,
+                phone: hostDetails[0].host_phone,
+                headline: hostDetails[0].headline,
+                bio: hostDetails[0].bio,
+                languages: hostDetails[0].language_spoken,
+                response_time: hostDetails[0].response_time,
+                host_since: hostDetails[0].host_since,
+                verified: hostDetails[0].govt_id_verified === 1,
+                profile_picture: hostDetails[0].profile_picture || hostDetails[0].user_profile_picture,
+                location: hostDetails[0].host_city ? `${hostDetails[0].host_city}, ${hostDetails[0].host_country}` : "Location not specified"
+            } : "Host details not available",
+            order_info: orderInfo.length > 0 ? {
+                booking_id: orderInfo[0].booking_id,
+                order_id: orderInfo[0].order_id,
+                check_in: orderInfo[0].check_in_date,
+                check_out: orderInfo[0].check_out_date,
+                total_price: orderInfo[0].total_price,
+                guests: orderInfo[0].guests_count,
 
-            paymentInfo: {
-                amount: data.amount,
-                method: data.payment_method,
-                status: data.payment_status
-            },
+                adults: orderInfo[0].adults,
+                children: orderInfo[0].children,
+                infants: orderInfo[0].infants,
 
-            supportDetails: {
-                supportEmail: "support@rentii.com",
-                supportPhone: "+91-9999999999"
-            }
-        };
+                status: orderInfo[0].status,
+                payment: orderInfo[0].payment_id ? {
+                    amount: orderInfo[0].payment_amount,
+                    method: orderInfo[0].payment_method,
+                    status: orderInfo[0].payment_status
+                } : null
+            } : "No active booking found"
+        }];
 
         res.json({
-            status: 1,
-            message: "Property details fetched successfully",
+            status: true,
             data: responseData
         });
 
     } catch (err) {
-        console.error("Get property details error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
+        console.error("Error fetching property details:", err);
+        res.status(500).json({
+            status: false,
+            message: "Server error while fetching property details",
+            error: err.message
+        });
+    }
+});
+
+
+// manage guest 
+// Manage Booking API - Handle all booking operations
+
+router.post("/manageBooking", async (req, res) => {
+    const {
+        booking_id,
+        type, // // manage_guests, update_dates, cancel_booking
+        adults,
+        children,
+        infants,
+        check_in_date,
+        check_out_date,
+        cancellation_reason
+    } = req.body;
+
+    // Validate required fields
+    if (!booking_id) {
+        return res.json({
+            status: 0,
+            message: "Booking ID is required"
+        });
     }
 
+    if (!type) {
+        return res.json({
+            status: 0,
+            message: "Operation type is required"
+        });
+    }
 
+    // Validate type against allowed values
+    const allowedTypes = ['manage_guests', 'update_dates', 'cancel_booking'];
+    if (!allowedTypes.includes(type)) {
+        return res.json({
+            status: 0,
+            message: "Invalid operation type. Allowed types: manage_guests, update_dates, cancel_booking"
+        });
+    }
+
+    try {
+        let query = "";
+        let values = [];
+        let responseMessage = "";
+        let paymentType = "";
+        let refundReference = ""
+
+        switch (type) {
+            // 1. MANAGE GUESTS - Update guest counts
+            case "manage_guests":
+                // Validate guest counts
+                if (adults === undefined || adults === null || adults < 0) {
+                    return res.json({
+                        status: 0,
+                        message: "Valid adults count is required and must be 0 or greater"
+                    });
+                }
+
+                // Validate individual counts are numbers and non-negative
+                const parsedAdults = parseInt(adults) || 0;
+                const parsedChildren = parseInt(children) || 0;
+                const parsedInfants = parseInt(infants) || 0;
+
+                if (parsedAdults < 0 || parsedChildren < 0 || parsedInfants < 0) {
+                    return res.json({
+                        status: 0,
+                        message: "Guest counts cannot be negative"
+                    });
+                }
+
+                // Calculate total guests
+                const total_guests = parsedAdults + parsedChildren + parsedInfants;
+
+                // Validate at least one adult
+                if (parsedAdults === 0) {
+                    return res.json({
+                        status: 0,
+                        message: "At least one adult is required"
+                    });
+                }
+
+                // First check if booking exists and get property max guests
+                const [bookingCheck] = await db.promise().query(
+                    `SELECT b.*, p.max_guests, b.status 
+                     FROM bookings b
+                     JOIN properties p ON b.property_id = p.property_id
+                     WHERE b.booking_id = ?`,
+                    [booking_id]
+                );
+
+                if (bookingCheck.length === 0) {
+                    return res.json({
+                        status: 0,
+                        message: "Booking not found"
+                    });
+                }
+
+                // Check if booking can be modified (not cancelled or completed)
+                if (bookingCheck[0].status === 3) {
+                    return res.json({
+                        status: 0,
+                        message: "Cannot modify a cancelled booking"
+                    });
+                }
+
+                // Validate against max guests
+                if (total_guests > bookingCheck[0].max_guests) {
+                    return res.json({
+                        status: 0,
+                        message: `Maximum ${bookingCheck[0].max_guests} guests allowed for this property`
+                    });
+                }
+
+                query = `UPDATE bookings SET guests_count = ?,adults = ?,children = ?,infants = ?, 
+                         updated_at = CURRENT_TIMESTAMP WHERE booking_id = ?`;
+
+                values = [total_guests, parsedAdults, parsedChildren, parsedInfants, booking_id];
+                responseMessage = "Guest count updated successfully";
+                break;
+
+            // 2. UPDATE DATES - Change check-in/out dates with payment handling
+            case "update_dates":
+                if (!check_in_date || !check_out_date) {
+                    return res.json({
+                        status: 0,
+                        message: "Check-in and check-out dates are required"
+                    });
+                }
+
+                // Validate date format
+                const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+                if (!dateRegex.test(check_in_date) || !dateRegex.test(check_out_date)) {
+                    return res.json({
+                        status: 0,
+                        message: "Invalid date format. Use YYYY-MM-DD"
+                    });
+                }
+
+                // Validate dates
+                const checkIn = new Date(check_in_date);
+                const checkOut = new Date(check_out_date);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+                    return res.json({
+                        status: 0,
+                        message: "Invalid date values"
+                    });
+                }
+
+                if (checkIn < today) {
+                    return res.json({
+                        status: 0,
+                        message: "Check-in date cannot be in the past"
+                    });
+                }
+
+                if (checkOut <= checkIn) {
+                    return res.json({
+                        status: 0,
+                        message: "Check-out date must be after check-in date"
+                    });
+                }
+
+                // Get current booking details
+                const [currentBooking] = await db.promise().query(
+                    `SELECT b.*, p.price_per_night, p.title as property_title,
+                            u.name as guest_name, u.email as guest_email, u.user_id
+                     FROM bookings b
+                     JOIN properties p ON b.property_id = p.property_id
+                     JOIN users u ON b.guest_id = u.user_id
+                     WHERE b.booking_id = ?`,
+                    [booking_id]
+                );
+
+                if (currentBooking.length === 0) {
+                    return res.json({
+                        status: 0,
+                        message: "Booking not found"
+                    });
+                }
+
+                const booking = currentBooking[0];
+
+                // Check if booking can be modified
+                if (booking.status === 3) {
+                    return res.json({
+                        status: 0,
+                        message: "Cannot modify a cancelled booking"
+                    });
+                }
+
+                // Check if property is available for new dates
+                const [availabilityCheck] = await db.promise().query(
+                    `SELECT b.* FROM bookings b 
+                     WHERE b.property_id = ? 
+                     AND b.booking_id != ?
+                     AND b.status IN (1, 2) 
+                     AND (
+                         (check_in_date <= ? AND check_out_date > ?) OR
+                         (check_in_date < ? AND check_out_date >= ?) OR
+                         (check_in_date >= ? AND check_out_date <= ?)
+                     )`,
+                    [booking.property_id, booking_id,
+                        check_out_date, check_in_date,
+                        check_out_date, check_in_date,
+                        check_in_date, check_out_date]
+                );
+
+                if (availabilityCheck.length > 0) {
+                    return res.json({
+                        status: 0,
+                        message: "Property is not available for selected dates"
+                    });
+                }
+
+                // Calculate nights and new price
+                const currentCheckIn = new Date(booking.check_in_date);
+                const currentCheckOut = new Date(booking.check_out_date);
+
+                const currentNights = Math.ceil((currentCheckOut - currentCheckIn) / (1000 * 60 * 60 * 24));
+                const newNights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+
+                if (newNights < 1) {
+                    return res.json({
+                        status: 0,
+                        message: "Booking must be for at least 1 night"
+                    });
+                }
+
+                const pricePerNight = parseFloat(booking.price_per_night);
+                const currentTotalPrice = parseFloat(booking.total_price);
+                const newTotalPrice = newNights * pricePerNight;
+
+                // Calculate price difference
+                const priceDifference = newTotalPrice - currentTotalPrice;
+
+                // If price increased, need additional payment
+                if (Math.abs(priceDifference) > 0.01) { // Handle floating point precision
+                    const paymentReference = "PAY_" + Date.now() + "_" + booking_id;
+
+                    if (priceDifference > 0) {
+                        // Create pending payment record
+                        await db.promise().query(
+                            `INSERT INTO pending_payments 
+                             (booking_id, amount, payment_type, status, reference, created_at) 
+                             VALUES (?, ?, 'date_change', 0, ?, NOW())`,
+                            [booking_id, priceDifference.toFixed(2), paymentReference]
+                        );
+
+                        // Update booking with new dates but keep status as pending_payment
+                        query = `UPDATE bookings SET 
+                                check_in_date = ?,
+                                check_out_date = ?,
+                                total_price = ?,
+                                previous_total_price = ?,
+                                price_difference = ?,
+                                payment_status = 'pending_additional',
+                                payment_reference = ?,
+                                updated_at = CURRENT_TIMESTAMP
+                                WHERE booking_id = ?`;
+
+                        values = [check_in_date, check_out_date, newTotalPrice.toFixed(2),
+                            currentTotalPrice.toFixed(2), priceDifference.toFixed(2),
+                            paymentReference, booking_id];
+
+                        responseMessage = `Dates updated. Additional payment of $${priceDifference.toFixed(2)} required. Payment reference: ${paymentReference}`;
+
+                        // Send notification to guest for additional payment
+                        // await db.promise().query(
+                        //     `INSERT INTO notifications (user_id, title, message, type, created_at)
+                        //      VALUES (?, 'Additional Payment Required', 
+                        //      CONCAT('Your date change request requires additional payment of $', ?, 
+                        //             '. Please complete the payment using reference: ', ?), 
+                        //      'payment_required', NOW())`,
+                        //     [booking.guest_id, priceDifference.toFixed(2), paymentReference]
+                        // );
+                        refundReference = paymentReference;
+                        paymentType = "additionalPayment"
+                    } else {
+                        // Price decreased - process refund
+                        const refundAmount = Math.abs(priceDifference);
+                        refundReference = "REF_" + Date.now() + "_" + booking_id;
+
+                        await db.promise().query(
+                            `INSERT INTO refunds 
+                             (booking_id, amount, refund_type, status, reference, created_at) 
+                             VALUES (?, ?, 'date_change', 0, ?, NOW())`,
+                            [booking_id, refundAmount.toFixed(2), refundReference]
+                        );
+
+                        query = `UPDATE bookings SET 
+                                check_in_date = ?,
+                                check_out_date = ?,
+                                total_price = ?,
+                                previous_total_price = ?,
+                                price_difference = ?,
+                                refund_amount = ?,
+                                refund_reference = ?,
+                                updated_at = CURRENT_TIMESTAMP
+                                WHERE booking_id = ?`;
+
+                        values = [check_in_date, check_out_date, newTotalPrice.toFixed(2),
+                            currentTotalPrice.toFixed(2), priceDifference.toFixed(2),
+                            refundAmount.toFixed(2), refundReference, booking_id];
+
+                        responseMessage = `Dates updated. Refund of $${refundAmount.toFixed(2)} will be processed. Reference: ${refundReference}`;
+                        refundReference = refundReference;
+                        paymentType = "refund"
+                    }
+                } else {
+                    // Price same - direct update
+                    query = `UPDATE bookings SET 
+                            check_in_date = ?,
+                            check_out_date = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                            WHERE booking_id = ?`;
+
+                    values = [check_in_date, check_out_date, booking_id];
+                    responseMessage = "Booking dates updated successfully";
+                }
+                break;
+
+            // 3. CANCEL BOOKING
+            case "cancel_booking":
+                if (!cancellation_reason || cancellation_reason.trim() === '') {
+                    return res.json({
+                        status: 0,
+                        message: "Cancellation reason is required"
+                    });
+                }
+
+                // Check if booking exists and get cancellation policy
+                const [cancelCheck] = await db.promise().query(
+                    `SELECT b.*, pcp.standardpolicy, b.status 
+                     FROM bookings b
+                     LEFT JOIN property_cancellation_policy pcp ON b.property_id = pcp.property_id
+                     WHERE b.booking_id = ?`,
+                    [booking_id]
+                );
+
+                if (cancelCheck.length === 0) {
+                    return res.json({
+                        status: 0,
+                        message: "Booking not found"
+                    });
+                }
+
+                const bookingdata = cancelCheck[0];
+
+                // Check if already cancelled
+                if (bookingdata.status === 3) {
+                    return res.json({
+                        status: 0,
+                        message: "Booking is already cancelled"
+                    });
+                }
+
+                const checkInDate = new Date(bookingdata.check_in_date);
+                const today_cancel = new Date();
+                today_cancel.setHours(0, 0, 0, 0);
+
+                const daysUntilCheckIn = Math.ceil((checkInDate - today_cancel) / (1000 * 60 * 60 * 24));
+
+                // Apply cancellation policy
+                let refund_amount = 0;
+                const policy = bookingdata.standardpolicy || "flexible";
+
+                switch (policy.toLowerCase()) {
+                    case "flexible":
+                        if (daysUntilCheckIn >= 1) refund_amount = bookingdata.total_price;
+                        break;
+                    case "moderate":
+                        if (daysUntilCheckIn >= 5) refund_amount = bookingdata.total_price;
+                        else if (daysUntilCheckIn >= 3) refund_amount = bookingdata.total_price * 0.5;
+                        break;
+                    case "strict":
+                        if (daysUntilCheckIn >= 7) refund_amount = bookingdata.total_price * 0.5;
+                        break;
+                    default:
+                        refund_amount = 0;
+                }
+
+                // Update booking status
+                query = `UPDATE bookings SET 
+                        status = 3,
+                        cancellation_reason = ?,
+                        cancellation_date = NOW(),
+                        updated_at = CURRENT_TIMESTAMP
+                        WHERE booking_id = ?`;
+
+                values = [cancellation_reason, booking_id];
+                const refundAmount = parseFloat(refund_amount) || 0;
+
+
+                // Log cancellation reason
+                await db.promise().query(
+                    `INSERT INTO booking_cancellations (booking_id, reason, refund_amount, cancelled_at) 
+                     VALUES (?, ?, ?, NOW())`,
+                    [booking_id, cancellation_reason, refundAmount]
+                );
+
+                responseMessage = `Booking cancelled successfully. Refund amount: $${refundAmount}`;
+
+                refundReference = 0;
+                paymentType = "bookingRefund";
+
+                break;
+        }
+
+        // Execute the update query if any
+        if (query) {
+            const [result] = await db.promise().query(query, values);
+
+            if (result.affectedRows === 0) {
+                return res.json({
+                    status: 0,
+                    message: "Booking not found or no changes made"
+                });
+            }
+        }
+
+        return res.json({
+            status: 1,
+            message: responseMessage || "Operation completed successfully",
+            booking_id: booking_id,
+            refundReference,
+            paymentType,
+        });
+
+    } catch (err) {
+        console.error("Manage Booking Error:", err);
+        return res.status(500).json({ // Use proper HTTP status code for server errors
+            status: 0,
+            message: "Server error occurred while processing your request",
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined // Only show error details in development
+        });
+    }
 });
+
+
+
+
+// //  View booking payment details
+router.post("/payment", async (req, res) => {
+    try {
+        const { booking_id } = req.body;
+
+        if (!booking_id) {
+            return res.status(400).json({ status: 0, message: "booking_id is required" });
+        }
+
+        const pendingPaymentsQuery = `SELECT * FROM pending_payments Where booking_id=?`;
+        const [pendingPayments] = await db.promise().query(pendingPaymentsQuery, [booking_id]);
+
+        const bookingsQuery = `SELECT * FROM bookings Where booking_id=?`;
+        const [bookings] = await db.promise().query(bookingsQuery, [booking_id]);
+
+        const paymentsQuery = `SELECT * FROM payments Where booking_id=?`;
+        const [payments] = await db.promise().query(paymentsQuery, [booking_id]);
+
+        const refundsQuery = `SELECT * FROM refunds Where booking_id=?`;
+        const [refunds] = await db.promise().query(refundsQuery, [booking_id]);
+
+
+
+        return res.json({
+            status: 1,
+            message: "data found",
+            pendingPayments: pendingPayments,
+            bookings: bookings,
+            payments: payments,
+            refunds: refunds
+        });
+
+    } catch (err) {
+        console.error("Error fetching payment details:", err);
+        return res.status(500).json({
+            status: 0,
+            message: "Server error",
+            error: err.message
+        });
+    }
+});
+
+
+
+
 
 // Export the router
 module.exports = router;

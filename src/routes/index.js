@@ -8,6 +8,7 @@ const upload = require('./upload-profile');
 const uploaddata = require('./uploadFunclity/upload');
 const DataGet = require('./dataget');
 const propertyRoutes = require('./property');
+const dashboardRoutes = require('./dashboard/dashboard');
 // // on-bording 
 const propartybording = require('./bording/propartybording');
 const host = require('./bording/host');
@@ -28,7 +29,9 @@ const Document = require('./document/document');
 
 //////---------url routes ---------//////
 router.use('/home', homeRoutes);
+router.use('/dashboard', dashboardRoutes);
 router.use('/profile', authenticateToken, profile);
+router.use('/profile', authenticateToken, Profile);
 router.use('/upload', authenticateToken, upload);
 router.use('/uploadFile', uploaddata);
 router.use('/data', authenticateToken, DataGet);
@@ -36,7 +39,7 @@ router.use('/property', authenticateToken, propertyRoutes);
 router.use("/user", loginRoutes);
 router.use('/onBoarding', authenticateToken, propartybording);  //////onBording
 router.use('/host', authenticateToken, host);
-router.use('/userProparty', propartyuser);
+router.use('/userProparty', authenticateToken, propartyuser);
 router.use('/razorpay', authenticateToken, razorpay);
 router.use('/calendarManagement', authenticateToken, Calendar);
 router.use('/booking', authenticateToken, Booking);

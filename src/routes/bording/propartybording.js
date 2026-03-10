@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../../db/ConnectionSql');
 const dbn = require('../../../db/db');
 const { deletePropertyImage } = require("../../utils/propertyImageService");
+
 // view api
 router.get('/properties', async (req, res) => {
     const userId = req.user.user_id;
@@ -387,7 +388,7 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
 
 
 router.post('/edit-property', upload.array("placesPhotos", 10), async (req, res) => {
-     console.log("edit-property=", 1)
+    console.log("edit-property=", 1)
     const connection = await dbn.getConnection();
 
     try {
@@ -974,8 +975,6 @@ router.post("/edit-propertyWeb",
     }
 );
 
-
-
 // router.post('/edit-property', async (req, res) => {
 //     const userId = req.user.user_id;
 //     const hostId = req.user.host_id;
@@ -1445,10 +1444,6 @@ router.get('/view-property-onboarding', async (req, res) => {
             return res.status(404).json({ status: false, message: "Property not found" });
         }
         const property = propertyRows[0];
-        // if (type == "userView") {
-        //      const [hostDetails] = await db.promise().query(`
-        //     SELECT * FROM properties WHERE property_id = ?`, [propertyId]);
-        // }
 
         // 2. Property address
         const [addressRows] = await db.promise().query(`
@@ -1474,8 +1469,7 @@ router.get('/view-property-onboarding', async (req, res) => {
             SELECT a.value,a.name ,pa.data_key
             FROM property_amenities pa 
             JOIN amenities a ON pa.amenity_id=a.amenity_id 
-            WHERE pa.property_id=?
-        `, [propertyId]);
+            WHERE pa.property_id=? `, [propertyId]);
         const amenitiesList = amenityRows.map(r => r.value);
 
         // 6. Booking settings
@@ -1489,6 +1483,32 @@ router.get('/view-property-onboarding', async (req, res) => {
             SELECT * FROM property_discounts WHERE property_id = ?
         `, [propertyId]);
         const discount = discountRows[0] || {};
+
+        // const groupedByUser = {};
+        let groupedByUser = [];
+        if (type == "userView") {
+            const [userAdditionalInfo] = await db.promise().query(`
+        SELECT uai.info_value, uai.info_key FROM properties p
+        INNER JOIN host_profiles hp ON p.host_id = hp.host_id
+        INNER JOIN users u ON hp.user_id = u.user_id
+        INNER JOIN user_additional_info uai ON u.user_id = uai.user_id
+        WHERE p.property_id = ? `, [propertyId]);
+
+            groupedByUser = userAdditionalInfo;
+
+            // if (userAdditionalInfo.length > 0) {
+            //     // Group by user_id
+            //     userAdditionalInfo.forEach(item => {
+            //         if (!groupedByUser[item.user_id]) {
+            //             groupedByUser[item.user_id] = {
+            //                 user_id: item.user_id,
+            //                 additional_info: {}
+            //             };
+            //         }
+            //         groupedByUser[item.user_id].additional_info[item.info_key] = item.info_value;
+            //     });
+            // }
+        }
 
         // 🏗️ Map amenities into categories like add-API expects
         let placehastooffer = {};
@@ -1527,6 +1547,7 @@ router.get('/view-property-onboarding', async (req, res) => {
             elsemightbethere: { type: property.other_people },
             apartmenttitle: { title: property.title },
             apartmentdescription: { description: property.description },
+            userAdditionalInfo: groupedByUser,
 
             startwiththebasics: {
                 peoplecanstay: {
@@ -1553,7 +1574,6 @@ router.get('/view-property-onboarding', async (req, res) => {
                 latitude: address.latitude,
                 longitude: address.longitude
             },
-
             residentailaddress: {
                 flat: hostAddress.flat,
                 streetaddress: hostAddress.street_address,
@@ -1606,7 +1626,6 @@ router.get('/view-property-onboarding', async (req, res) => {
         res.status(500).json({ status: false, message: "Server error" });
     }
 });
-
 
 //// view property-new proper 
 router.get('/view-property', async (req, res) => {
@@ -1869,8 +1888,6 @@ router.get('/view-property', async (req, res) => {
     }
 });
 
-
-
 router.get('/viewPropertyList', async (req, res) => {
     const hostId = req.user?.host_id;
     if (!hostId) {
@@ -1932,10 +1949,6 @@ ORDER BY p.property_id DESC;`
 });
 
 
-
-
-
-
 // Edit Property Listing API - Handles individual section updates
 router.post('/edit-property-listing', async (req, res) => {
     const userId = req.user.user_id;
@@ -1961,27 +1974,6 @@ router.post('/edit-property-listing', async (req, res) => {
         console.log(data)
         // Handle different section types based on your data structure
         switch (type) {
-
-            // case "photo_tour":
-            //     // Handle photo tour images
-            //     if (data.photo_tour && data.photo_tour.images && data.photo_tour.images.length) {
-            //         // Delete existing photos for this property
-            //         await connection.query(`DELETE FROM property_images WHERE property_id=?`, [propertyId]);
-
-            //         // Insert new photos
-            //         for (let i = 0; i < data.photo_tour.images.length; i++) {
-            //             const imageId = data.photo_tour.images[i];
-            //             // Assuming you have a way to get the actual image URL from the ID
-            //             const imageUrl = `${imageId}`; // Adjust this based on your storage logic
-
-            //             await connection.query(
-            // `INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
-            // [propertyId, imageUrl, i === 0 ? 1 : 0]
-            //             );
-            //         }
-            //     }
-            //     break;
-
             case "title":
                 updateQuery = `UPDATE properties SET title = ? WHERE property_id=? AND host_id=?`;
                 updateValue = [data?.title?.title, propertyId, hostId];
@@ -2413,6 +2405,8 @@ router.post('/edit-property-listing', async (req, res) => {
         connection.release();
     }
 });
+
+
 router.post("/deletePropertyImage", async (req, res) => {
     try {
 

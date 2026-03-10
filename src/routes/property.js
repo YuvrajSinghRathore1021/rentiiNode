@@ -66,12 +66,10 @@ router.post("/toggleStatus", async (req, res) => {
     try {
         let Query = '';
         let data = [];
-        if (status) {
-            Query = "UPDATE properties SET is_active = ?, updated_at = NOW() WHERE property_id = ?";
-            data = [status, id];
-        } else {
-            return res.status(400).json({ status: false, message: "Invalid status" });
-        }
+
+        Query = "UPDATE properties SET is_active = ?, updated_at = NOW() WHERE property_id = ?";
+        data = [status, id];
+
         await db.promise().query(Query, data);
 
         res.json({ status: true, message: "Status updated successfully" });
@@ -81,102 +79,106 @@ router.post("/toggleStatus", async (req, res) => {
     }
 });
 
-router.post("/create", async (req, res) => {
-    const userId = req.user.user_id;
-    const { title, description, property_type, room_type, max_guests, bedrooms, beds, bathrooms, price_per_night, cleaning_fee, latitude, longitude } = req.body;
 
-    try {
-        const query = "INSERT INTO properties (host_id, title, description, property_type, room_type, max_guests, bedrooms, beds, bathrooms, price_per_night, cleaning_fee,  latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        const data = [userId, title, description, property_type, room_type, max_guests, bedrooms, beds, bathrooms, price_per_night, cleaning_fee, latitude, longitude];
-        const [result] = await db.promise().query(query, data);
-        res.json({ status: true, message: "Property created successfully", propertyId: result.insertId });
-    } catch (err) {
-        console.error("Create property error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
-    }
-});
+
+// router.post("/create", async (req, res) => {
+//     const userId = req.user.user_id;
+//     const { title, description, property_type, room_type, max_guests, bedrooms, beds, bathrooms, price_per_night, cleaning_fee, latitude, longitude } = req.body;
+
+//     try {
+//         const query = "INSERT INTO properties (host_id, title, description, property_type, room_type, max_guests, bedrooms, beds, bathrooms, price_per_night, cleaning_fee,  latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+//         const data = [userId, title, description, property_type, room_type, max_guests, bedrooms, beds, bathrooms, price_per_night, cleaning_fee, latitude, longitude];
+//         const [result] = await db.promise().query(query, data);
+//         res.json({ status: true, message: "Property created successfully", propertyId: result.insertId });
+//     } catch (err) {
+//         console.error("Create property error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
 
 // new address tab 
-router.post("/addressEditAdd", async (req, res) => {
-    const userId = req.user.user_id;
-    const { city, country, address_id, property_id, street_address, state_province, postal_code, } = req.body;
-    //  `address_id`, `property_id`, `street_address`, `city`, `state_province`, `postal_code`, `country`
-    try {
-        let query = "";
-        let data = "";
-        let type = "";
+// router.post("/addressEditAdd", async (req, res) => {
+//     const userId = req.user.user_id;
+//     const { city, country, address_id, property_id, street_address, state_province, postal_code, } = req.body;
+//     //  `address_id`, `property_id`, `street_address`, `city`, `state_province`, `postal_code`, `country`
+//     try {
+//         let query = "";
+//         let data = "";
+//         let type = "";
 
-        if (address_id != 0 && address_id != null && address_id != undefined && address_id != "") {
-            query = "UPDATE property_addresses SET street_address = ?, city = ?, state_province = ?, postal_code = ?, country = ? WHERE address_id = ?";
-            data = [street_address, city, state_province, postal_code, country, address_id];
-            type = "update";
-        } else {
-            query = "INSERT INTO property_addresses (property_id, street_address, city, state_province, postal_code, country) VALUES (?, ?, ?, ?, ?, ?)";
-            data = [property_id, street_address, city, state_province, postal_code, country];
-            type = "insert";
-        }
-        const [result] = await db.promise().query(query, data);
+//         if (address_id != 0 && address_id != null && address_id != undefined && address_id != "") {
+//             query = "UPDATE property_addresses SET street_address = ?, city = ?, state_province = ?, postal_code = ?, country = ? WHERE address_id = ?";
+//             data = [street_address, city, state_province, postal_code, country, address_id];
+//             type = "update";
+//         } else {
+//             query = "INSERT INTO property_addresses (property_id, street_address, city, state_province, postal_code, country) VALUES (?, ?, ?, ?, ?, ?)";
+//             data = [property_id, street_address, city, state_province, postal_code, country];
+//             type = "insert";
+//         }
+//         const [result] = await db.promise().query(query, data);
 
-        if (type == "insert") {
-            let LastAddressId = result.insertId;
-            const updatePropertyQuery = "UPDATE properties SET address_id = ? WHERE property_id = ?";
-            await db.promise().query(updatePropertyQuery, [LastAddressId, property_id]);
-        }
+//         if (type == "insert") {
+//             let LastAddressId = result.insertId;
+//             const updatePropertyQuery = "UPDATE properties SET address_id = ? WHERE property_id = ?";
+//             await db.promise().query(updatePropertyQuery, [LastAddressId, property_id]);
+//         }
 
-        res.json({ status: true, message: "Address Add /Update successfully", addressId: result.insertId });
-    } catch (err) {
-        console.error("Create address error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
-    }
-});
+//         res.json({ status: true, message: "Address Add /Update successfully", addressId: result.insertId });
+//     } catch (err) {
+//         console.error("Create address error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
 
 // address Get 
 
-router.get("/addressGet", async (req, res) => {
-    const userId = req.user.user_id;
-    const { address_id, property_id } = req.query;
+// router.get("/addressGet", async (req, res) => {
+//     const userId = req.user.user_id;
+//     const { address_id, property_id } = req.query;
 
-    try {
-        const query = "SELECT address_id, property_id, street_address, city, state_province, postal_code, country FROM property_addresses WHERE property_id = ? and address_id = ?";
-        const [address] = await db.promise().query(query, [property_id, address_id]);
-        if (address.length === 0) {
-            return res.status(200).json({ status: false, message: "Address not found" });
-        }
-        res.json({ status: true, data: address[0] });
-    } catch (err) {
-        console.error("Get address error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
-    }
-});
+//     try {
+//         const query = "SELECT address_id, property_id, street_address, city, state_province, postal_code, country FROM property_addresses WHERE property_id = ? and address_id = ?";
+//         const [address] = await db.promise().query(query, [property_id, address_id]);
+//         if (address.length === 0) {
+//             return res.status(200).json({ status: false, message: "Address not found" });
+//         }
+//         res.json({ status: true, data: address[0] });
+//     } catch (err) {
+//         console.error("Get address error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
 
-// property_images   propertyImages
-router.post("/propertyImages", async (req, res) => {
-    const userId = req.user.user_id;
-    const { property_id, image_url, image_id, caption } = req.body;
-    try {
+// // property_images   propertyImages
+// router.post("/propertyImages", async (req, res) => {
+//     const userId = req.user.user_id;
+//     const { property_id, image_url, image_id, caption } = req.body;
+//     try {
 
 
-        let query = "";
-        let data = "";
-        let type = "";
-        if (image_id != 0 && image_id != null && image_id != undefined && image_id != "") {
-            query = "UPDATE property_images SET image_url = ?,caption=? WHERE image_id = ?";
-            data = [image_url, caption, image_id];
+//         let query = "";
+//         let data = "";
+//         let type = "";
+//         if (image_id != 0 && image_id != null && image_id != undefined && image_id != "") {
+//             query = "UPDATE property_images SET image_url = ?,caption=? WHERE image_id = ?";
+//             data = [image_url, caption, image_id];
 
-            type = "update";
-        } else {
-            query = "INSERT INTO property_images (property_id, image_url,caption) VALUES (?, ?,?)";
-            data = [property_id, image_url, caption];
-            type = "insert";
-        }
-        const [result] = await db.promise().query(query, data);
+//             type = "update";
+//         } else {
+//             query = "INSERT INTO property_images (property_id, image_url,caption) VALUES (?, ?,?)";
+//             data = [property_id, image_url, caption];
+//             type = "insert";
+//         }
+//         const [result] = await db.promise().query(query, data);
 
-        res.json({ status: true, message: "Image Add /Update successfully", imageId: result.insertId });
-    } catch (err) {
-        console.error("Create property image error:", err);
-        res.status(500).json({ status: false, message: "Server error" });
-    }
-});
+//         res.json({ status: true, message: "Image Add /Update successfully", imageId: result.insertId });
+//     } catch (err) {
+//         console.error("Create property image error:", err);
+//         res.status(500).json({ status: false, message: "Server error" });
+//     }
+// });
+
+
 
 // propertyImagesView
 router.post("/propertyImagesView", async (req, res) => {
