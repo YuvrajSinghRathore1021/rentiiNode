@@ -255,22 +255,13 @@ router.post("/documentUpload", async (req, res) => {
 
 // Get document details with filters
 router.get("/documentDetails", async (req, res) => {
-    const {
-        page = 1,
-        limit = 10,
-        search = "",
-        status = "",
-        type = "all",
-        userId = "",
-        propertyId = "",
-        start_date = "",
-        end_date = ""
-    } = req.query;
+    const { page = 1, limit = 10, search = "", status = "", type = "all", propertyId = "", start_date = "", end_date = "" } = req.query;
+    let { userId = "" } = req.query;
+
 
     try {
         let query = `
-            SELECT 
-                d.*,
+            SELECT d.*,
                 u.name as user_name,
                 u.email as user_email,
                 p.title as property_title
@@ -280,44 +271,44 @@ router.get("/documentDetails", async (req, res) => {
             WHERE d.is_deleted = 0
         `;
         let queryParams = [];
-
+        let queryNew = ``
         // Type filter
         if (type !== "all") {
-            query += " AND d.type = ?";
+            queryNew += " AND d.type = ?";
             queryParams.push(type === 'user' ? 1 : 2);
         }
 
         // Status filter
         if (status !== "") {
-            query += " AND d.status = ?";
+            queryNew += " AND d.status = ?";
             queryParams.push(status);
         }
 
         // User ID filter
-        if (userId) {
-            query += " AND d.user_id = ?";
+        if (userId > 0) {
+            queryNew += " AND d.user_id = ?";
             queryParams.push(userId);
         }
 
         // Property ID filter
         if (propertyId) {
-            query += " AND d.property_id = ?";
+            queryNew += " AND d.property_id = ?";
             queryParams.push(propertyId);
         }
 
         // Date range filter
         if (start_date) {
-            query += " AND DATE(d.uploaded_at) >= ?";
+            queryNew += " AND DATE(d.uploaded_at) >= ?";
             queryParams.push(start_date);
         }
         if (end_date) {
-            query += " AND DATE(d.uploaded_at) <= ?";
+            queryNew += " AND DATE(d.uploaded_at) <= ?";
             queryParams.push(end_date);
         }
 
         // Search filter
         if (search) {
-            query += " AND (d.title LIKE ? OR d.description LIKE ? OR u.name LIKE ? OR p.title LIKE ?)";
+            queryNew += " AND (d.title LIKE ? OR d.description LIKE ? OR u.name LIKE ? OR p.title LIKE ?)";
             const searchPattern = `%${search}%`;
             queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
         }
@@ -330,12 +321,15 @@ router.get("/documentDetails", async (req, res) => {
             LEFT JOIN properties p ON d.property_id = p.property_id
             WHERE d.is_deleted = 0
         `;
+        query += queryNew
+        countQuery += queryNew
+
         let countParams = [...queryParams];
 
         // Add pagination
         query += " ORDER BY d.uploaded_at DESC LIMIT ? OFFSET ?";
         queryParams.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
-console.log(query, queryParams)
+
         // Execute queries
         const [documents] = await db.promise().query(query, queryParams);
         const [countResult] = await db.promise().query(countQuery, countParams);
@@ -352,11 +346,12 @@ console.log(query, queryParams)
             WHERE is_deleted = 0`;
 
         let statsParams = [];
-        
+
         if (propertyId) {
             statsQuery += " AND property_id = ?";
             statsParams.push(propertyId);
         }
+
 
         const [stats] = await db.promise().query(statsQuery, statsParams);
 
