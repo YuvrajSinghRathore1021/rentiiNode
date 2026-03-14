@@ -32,7 +32,7 @@ const Broker = require('./broker/broker');
 
 //////---------url routes ---------//////
 router.use('/home', homeRoutes);
-router.use('/dashboard', dashboardRoutes);
+router.use('/dashboard', authenticateToken, dashboardRoutes);
 router.use('/profile', authenticateToken, profile);
 router.use('/profile', authenticateToken, Profile);
 router.use('/upload', authenticateToken, upload);
@@ -47,7 +47,6 @@ router.use('/razorpay', authenticateToken, razorpay);
 router.use('/calendarManagement', authenticateToken, Calendar);
 router.use('/booking', authenticateToken, Booking);
 router.use('/document', authenticateToken, Document);
-
 
 // broker
 router.use('/Broker', authenticateToken, Broker);

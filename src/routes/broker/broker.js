@@ -19,12 +19,10 @@ const isBroker = async (req, res, next) => {
 
         if (rows.length === 0) {
 
-            const [result] = await db.promise().query(
-                `INSERT INTO brokers (user_id) VALUES (?)`,
-                [userId]
-            );
-
-            req.brokerId = result.insertId;
+            return res.status(403).json({
+                status: 0,
+                message: "Not Abel"
+            });
 
         } else {
 
@@ -117,7 +115,7 @@ router.put('/profile', [
             experience_years, specialization, languages, profile_image, about
         } = req.body;
 
-       
+
 
         try {
             // Update users table
@@ -127,7 +125,6 @@ router.put('/profile', [
                     [name, email, phone, req.brokerId]
                 );
             }
-
             // Update brokers table
             await db.promise().query(
                 `UPDATE brokers SET 
@@ -155,10 +152,10 @@ router.put('/profile', [
                 ]
             );
 
-            
+
             res.json({ status: 1, message: 'Profile updated successfully' });
         } catch (error) {
-           
+
             throw error;
         } finally {
         }
@@ -873,7 +870,7 @@ router.post('/leads/:id/convert', async (req, res) => {
     try {
         const { id } = req.params;
 
-       
+
 
         try {
             // Update lead status

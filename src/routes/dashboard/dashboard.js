@@ -2,6 +2,68 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../../db/ConnectionSql');
 
+router.get('/userCheck', async (req, res) => {
+    try {
+        const userId = req.user.user_id;
+
+        // User not logged in
+        if (!userId) {
+            return res.json({
+                status: true,
+                authenticated: false,
+                type: "user",
+                message: "Not logged in"
+            });
+        }
+
+        let type = "user";
+
+        // check broker
+        const [broker] = await db.promise().query(
+            `SELECT id FROM brokers WHERE user_id = ? LIMIT 1`,
+            [userId]
+        );
+
+        if (broker.length > 0) {
+            type = "broker";
+        }
+
+        // check host
+        const [host] = await db.promise().query(
+            `SELECT host_id FROM host_profiles WHERE user_id = ? LIMIT 1`,
+            [userId]
+        );
+
+        if (host.length > 0) {
+            type = "host";
+        }
+        if (broker.length > 0 && host.length) {
+            type = "host-broker";
+        }
+
+        // super admin check
+        if (userId == 3) {
+            type = "super-admin";
+        }
+
+        return res.json({
+            status: true,
+            authenticated: true,
+            type: type,
+            user_id: userId,
+            message: "User authenticated"
+        });
+
+    } catch (error) {
+        console.error("User check error:", error);
+        return res.status(500).json({
+            status: false,
+            message: "Error checking user",
+            error: error.message
+        });
+    }
+});
+
 // Get dashboard metrics
 router.get('/metrics', async (req, res) => {
     try {
