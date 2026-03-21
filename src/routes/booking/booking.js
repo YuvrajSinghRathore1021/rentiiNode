@@ -257,15 +257,13 @@ router.post("/calculate", async (req, res) => {
 
 
 router.get('/bookingsDetails', async (req, res) => {
-    const {
-        page = 1,
-        limit = 10,
-        search = "",
-        status = "",
-        payment_status = "",
-        start_date = "",
-        end_date = ""
-    } = req.query;
+    const { page = 1, limit = 10, search = "", status = "", payment_status = "",
+        start_date = "", end_date = "", propertyView = "" } = req.query;
+
+    let hostId = 0;
+    if (propertyView == "hostView") {
+        hostId = req.user.host_id;
+    }
 
     try {
         // Main query with all necessary joins
@@ -329,6 +327,11 @@ router.get('/bookingsDetails', async (req, res) => {
         if (status) {
             query += " AND b.status = ?";
             queryParams.push(status);
+
+        }
+        if (hostId) {
+            query += " AND p.host_id = ?";
+            queryParams.push(hostId);
         }
 
         if (payment_status) {

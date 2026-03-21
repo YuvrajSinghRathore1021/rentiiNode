@@ -19,10 +19,7 @@ router.get('/userCheck', async (req, res) => {
         let type = "user";
 
         // check broker
-        const [broker] = await db.promise().query(
-            `SELECT id FROM brokers WHERE user_id = ? LIMIT 1`,
-            [userId]
-        );
+        const [broker] = await db.promise().query(`SELECT id FROM brokers WHERE user_id = ? LIMIT 1`, [userId]);
 
         if (broker.length > 0) {
             type = "broker";

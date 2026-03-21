@@ -1,9 +1,9 @@
 const mysql = require('mysql2');
 
 const db = mysql.createConnection({
-    host: '72.60.219.1',
-    user: 'myuser',
-    password: 'StrongPass@#123',
+host: '72.60.219.1',
+user: 'myuser',
+password: 'StrongPass@#123',
     database: 'mydb'
 });
 
@@ -34,3 +34,17 @@ module.exports = db;
 
 
 
+// const mysql = require('mysql2');
+
+// const pool = mysql.createPool({
+//     host: '72.60.219.1',
+//     user: 'myuser',
+//     password: 'StrongPass@#123',
+//     database: 'mydb',
+//     waitForConnections: true,
+//     connectionLimit: 10
+// });
+
+// const db = pool.promise();
+
+// module.exports = db;

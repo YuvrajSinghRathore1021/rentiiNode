@@ -195,8 +195,6 @@ router.get('/getAllProperties', async (req, res) => {
     }
 });
 
-
-
 // // user favourite
 router.get('/getfavouriteProperties', async (req, res) => {
     try {
@@ -934,7 +932,6 @@ const favouriteCheck = async (userId, propertyId) => {
         return false;
     }
 };
-
 
 router.get('/getProperty', async (req, res) => {
     const { property_id } = req.query;
