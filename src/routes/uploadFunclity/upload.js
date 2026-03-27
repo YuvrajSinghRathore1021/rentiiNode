@@ -9,7 +9,7 @@ const saveUploadedFiles = require("../../helpers/saveUploadedFiles");
 const { addPropertyImage } = require("../../utils/propertyImageService");
 
 router.post("/all", uploadFields, async (req, res) => {
-    const { propertyId = 0 } = req.body;
+    const { propertyId = 0,authorization = false, document = "" } = req.body;
     try {
 
         const result = await saveUploadedFile(req);

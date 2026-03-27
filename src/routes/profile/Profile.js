@@ -9,7 +9,7 @@ router.get("/personalInformation", async (req, res) => {
     const userId = req.user.user_id;
 
     try {
-        let query = `SELECT legal_name as legalName,name as preferredFirstName,email,phone_number as phoneNumber,email,emergency_contact as emergencyContact,alternate_address as mailingAddress,primary_address as residentialAddress  FROM users WHERE user_id =?`;
+        let query = `SELECT legal_name as legalName,name as preferredFirstName,email,phone_number as phoneNumber,email,emergency_contact as emergencyContact,alternate_address as mailingAddress,primary_address as residentialAddress,profile_picture_url as profilePicture  FROM users WHERE user_id =?`;
         const queryParams = [userId];
 
         const [user] = await db.promise().query(query, queryParams);

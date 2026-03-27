@@ -172,6 +172,12 @@
 
 
 
+
+
+
+
+
+
 const express = require('express');
 const router = express.Router();
 const db = require('../../../db/ConnectionSql');
@@ -255,10 +261,11 @@ router.post("/documentUpload", async (req, res) => {
 
 // Get document details with filters
 router.get("/documentDetails", async (req, res) => {
-    const { page = 1, limit = 10, search = "", status = "", type = "all", propertyId = "", start_date = "", end_date = "" } = req.query;
-    let { userId = "" } = req.query;
-
-
+    const { page = 1, limit = 10, search = "", status = "", type = "all", start_date = "", end_date = "", platformType = "" } = req.query;
+    let { userId = "", propertyId = "", } = req.query;
+    propertyId = Number(propertyId) || 0;
+    const userIdGEt = req.user.user_id;
+    userId = userId || userIdGEt;
     try {
         let query = `
             SELECT d.*,
@@ -306,13 +313,13 @@ router.get("/documentDetails", async (req, res) => {
             queryParams.push(end_date);
         }
 
+
         // Search filter
         if (search) {
             queryNew += " AND (d.title LIKE ? OR d.description LIKE ? OR u.name LIKE ? OR p.title LIKE ?)";
             const searchPattern = `%${search}%`;
             queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
         }
-
         // Get total count for pagination
         let countQuery = `
             SELECT COUNT(*) AS total 

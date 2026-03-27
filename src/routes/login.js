@@ -128,6 +128,99 @@ router.post('/otpCheck', (req, res) => {
 
 
 
+router.post('/google/login', async (req, res) => {
+  const { email, type = "user", photo, name, id: google_id } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ status: false, message: "Email is required" });
+  }
+
+  // Step 1: Check user
+  const checkQuery = `SELECT * FROM users WHERE email = ?`;
+
+  db.query(checkQuery, [email], async (err, results) => {
+    if (err) {
+      console.error('Login error:', err);
+      return res.status(500).json({ status: false, message: 'Server error' });
+    }
+
+    let user;
+    let userType = "login";
+
+    if (!results || results.length === 0) {
+      // 👉 NEW USER (REGISTER)
+      userType = "register";
+
+      const insertQuery = `
+        INSERT INTO users (email, name, profile_picture_url, is_verified_email, created_at)
+        VALUES (?, ?, ?, 1, NOW())
+      `;
+
+      db.query(insertQuery, [email, name, photo], (insertErr, insertResult) => {
+        if (insertErr) {
+          console.error('Insert error:', insertErr);
+          return res.status(500).json({ status: false, message: 'Server error' });
+        }
+
+        // ✅ IMPORTANT: get inserted user_id
+        user = {
+          user_id: insertResult.insertId,
+          email,
+          name,
+          profile_picture_url: photo,
+          is_verified_email: 1
+        };
+
+        sendToken(user, userType, res);
+      });
+
+    } else {
+      // 👉 EXISTING USER
+      user = results[0];
+
+      // ✅ Update Google data if missing
+      const updateQuery = `
+        UPDATE users 
+        SET name = COALESCE(name, ?),
+            profile_picture_url = COALESCE(profile_picture_url, ?),
+            updated_at = NOW()
+        WHERE user_id = ?
+      `;
+
+      db.query(updateQuery, [name, photo, user.user_id]);
+
+      sendToken(user, userType, res);
+    }
+  });
+});
+
+
+// ✅ Common token function
+function sendToken(user, userType, res) {
+  const token = jwt.sign(
+    {
+      user_id: user.user_id,
+      name: user.name,
+      email: user.email,
+      dob: user.dob || null,
+      phone_number: user.phone_number || null,
+      about: user.about || null,
+      host_id: user.host_id || null,
+      is_host: user.is_host || 0,
+      is_verified_email: user.is_verified_email || 1,
+      status: user.status || 1
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '4300h' }
+  );
+
+  res.status(200).json({
+    status: true,
+    message: 'User Login successfully',
+    type: userType,
+    token
+  });
+}
 
 
 

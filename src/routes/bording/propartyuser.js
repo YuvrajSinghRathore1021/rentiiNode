@@ -17,7 +17,8 @@ router.get('/getAllProperties', async (req, res) => {
             latitude,
             longitude,
             radius = 5,
-            totalGuests = 0
+            totalGuests = 0,
+            property_type = ""
         } = req.query;
 
         page = parseInt(page);
@@ -113,6 +114,10 @@ router.get('/getAllProperties', async (req, res) => {
             query += ` AND p.max_guests >= ?`;
             queryParams.push(parseInt(totalGuests));
         }
+        if (property_type && property_type != "Trending") {
+            query += ` AND p.property_type = ?`;
+            queryParams.push(property_type);
+        }
 
         /* ---------------- SORT + PAGINATION ---------------- */
         query += `
@@ -165,7 +170,10 @@ router.get('/getAllProperties', async (req, res) => {
             countQuery += ` AND p.max_guests >= ?`;
             countParams.push(parseInt(totalGuests));
         }
-
+        if (property_type && property_type != "Trending") {
+            countQuery += ` AND p.property_type = ?`;
+            countParams.push(property_type);
+        }
         const [countResult] = await db.promise().query(countQuery, countParams);
 
         /* ---------------- FORMAT DATA ---------------- */
@@ -177,7 +185,6 @@ router.get('/getAllProperties', async (req, res) => {
                 favourite: await favouriteCheck(userId, p.property_id)
             }))
         );
-
         return res.json({
             status: true,
             data: formattedProperties,
@@ -188,6 +195,156 @@ router.get('/getAllProperties', async (req, res) => {
 
     } catch (err) {
         console.error("Get properties error:", err);
+        res.status(500).json({
+            status: false,
+            message: "Server error"
+        });
+    }
+});
+
+// // map data 
+router.post('/getPropertiesByMap', async (req, res) => {
+    try {
+        const userId = req?.user?.user_id || 0;
+
+        let {
+            northEast,
+            southWest,
+            zoom,
+            page = 1,
+            limit = 20,
+            search = "",
+            totalGuests = 0,
+            property_type = ""
+        } = req.body;
+        console.log("getPropertiesByMap=", req.body)
+
+        page = parseInt(page);
+        limit = parseInt(limit);
+
+        /* ---------------- VALIDATION ---------------- */
+        if (!northEast || !southWest) {
+            return res.status(400).json({
+                status: false,
+                message: "Map bounds required"
+            });
+        }
+
+        const neLat = parseFloat(northEast.lat);
+        const neLng = parseFloat(northEast.lng);
+        const swLat = parseFloat(southWest.lat);
+        const swLng = parseFloat(southWest.lng);
+
+
+        /* ---------------- MAIN QUERY ---------------- */
+        let query = `
+            SELECT 
+                p.property_id,
+                p.title,
+                p.description,
+                p.property_type,
+                p.room_type,
+                p.max_guests,
+                p.bedrooms,
+                p.beds,
+                p.bathrooms,
+                p.price_per_night,
+                p.latitude,
+                p.longitude,
+                p.weekday_price,
+                p.weekend_price,
+
+                pa.street_address,
+                pa.city,
+                pa.state_province,
+                pa.postal_code,
+                pa.country,
+
+                (
+                    SELECT GROUP_CONCAT(DISTINCT a.name SEPARATOR ', ')
+                    FROM property_amenities pa2
+                    JOIN amenities a 
+                        ON pa2.amenity_id = a.amenity_id
+                    WHERE pa2.property_id = p.property_id
+                ) AS amenities,
+
+                (
+                    SELECT GROUP_CONCAT(DISTINCT pi.image_url SEPARATOR ', ')
+                    FROM property_images pi
+                    WHERE pi.property_id = p.property_id
+                ) AS images
+
+            FROM properties p
+            LEFT JOIN property_addresses pa 
+                ON p.property_id = pa.property_id
+
+            WHERE 
+                p.latitude BETWEEN ? AND ?
+                AND p.longitude BETWEEN ? AND ?
+        `;
+
+        const params = [
+            swLat,  // min lat
+            neLat,  // max lat
+            swLng,  // min lng
+            neLng   // max lng
+        ];
+
+        /* ---------------- SEARCH ---------------- */
+        if (search) {
+            const pattern = `%${search}%`;
+            query += `
+                AND (
+                    p.title LIKE ? 
+                    OR p.description LIKE ? 
+                    OR pa.street_address LIKE ?
+                )
+            `;
+            params.push(pattern, pattern, pattern);
+        }
+
+        /* ---------------- FILTERS ---------------- */
+        if (totalGuests) {
+            query += ` AND p.max_guests >= ?`;
+            params.push(parseInt(totalGuests));
+        }
+
+        if (property_type && property_type !== "Trending") {
+            query += ` AND p.property_type = ?`;
+            params.push(property_type);
+        }
+
+        /* ---------------- SMART LIMIT (ZOOM BASED) ---------------- */
+        let dynamicLimit = limit;
+
+        if (zoom <= 10) dynamicLimit = 50;
+        else if (zoom <= 13) dynamicLimit = 100;
+        else dynamicLimit = 200;
+
+        query += ` LIMIT ? OFFSET ?`;
+        params.push(dynamicLimit, (page - 1) * dynamicLimit);
+
+        const [properties] = await db.promise().query(query, params);
+
+        /* ---------------- FORMAT ---------------- */
+        const formatted = await Promise.all(
+            properties.map(async (p) => ({
+                ...p,
+                amenities: p.amenities ? p.amenities.split(", ") : [],
+                images: p.images ? p.images.split(", ") : [],
+                favourite: await favouriteCheck(userId, p.property_id)
+            }))
+        );
+
+        return res.json({
+            status: true,
+            data: formatted,
+            count: formatted.length,
+            zoom
+        });
+
+    } catch (err) {
+        console.error("Map property error:", err);
         res.status(500).json({
             status: false,
             message: "Server error"
@@ -511,7 +668,7 @@ router.get('/getUserBookings', async (req, res) => {
 
 // Get reviews for a user 
 router.get('/review/view', async (req, res) => {
-    const userId = req?.user?.user_id || 0; // Assuming user ID is stored in req.user
+    const userId = req?.user?.user_id || 0; 
     const { page = 1, limit = 10 } = req.query;
 
     try {

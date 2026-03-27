@@ -742,7 +742,6 @@ router.post('/add-property', async (req, res) => {
         const userId = req.user.user_id;
         const hostId = req.user.host_id || 1;
         const { data } = req.body;
-        console.log(data);
 
         // 1. Insert into properties
         const [propertyResult] = await connection.query(`

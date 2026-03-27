@@ -95,7 +95,6 @@ router.post("/calculate", async (req, res) => {
             `SELECT price_per_night, weekend_price, weekday_price, cleaning_fee FROM properties 
              WHERE property_id = ? AND is_active = 1`, [propertyId]
         );
-        // console.log("properties", properties);
         if (properties.length == 0) {
             return res.status(404).json({ status: false, message: "Property not found or inactive" });
         }
@@ -257,6 +256,7 @@ router.post("/calculate", async (req, res) => {
 
 
 router.get('/bookingsDetails', async (req, res) => {
+    
     const { page = 1, limit = 10, search = "", status = "", payment_status = "",
         start_date = "", end_date = "", propertyView = "" } = req.query;
 
@@ -264,7 +264,7 @@ router.get('/bookingsDetails', async (req, res) => {
     if (propertyView == "hostView") {
         hostId = req.user.host_id;
     }
-
+    
     try {
         // Main query with all necessary joins
         let query = `

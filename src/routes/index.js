@@ -27,7 +27,7 @@ const Calendar = require('./calendarmanagement/Calendar');
 const Booking = require('./booking/booking');
 const Document = require('./document/document');
 
-// broker
+//  // broker
 const Broker = require('./broker/broker');
 
 //////---------url routes ---------//////
@@ -40,7 +40,7 @@ router.use('/uploadFile', uploaddata);
 router.use('/data', authenticateToken, DataGet);
 router.use('/property', authenticateToken, propertyRoutes);
 router.use("/user", loginRoutes);
-router.use('/onBoarding', authenticateToken, propartybording);  //////onBording
+router.use('/onBoarding', authenticateToken, propartybording);
 router.use('/host', authenticateToken, host);
 router.use('/userProparty', optionalAuth, propartyuser);
 router.use('/razorpay', authenticateToken, razorpay);
@@ -49,5 +49,4 @@ router.use('/booking', authenticateToken, Booking);
 router.use('/document', authenticateToken, Document);
 // broker
 router.use('/Broker', authenticateToken, Broker);
-
 module.exports = router;

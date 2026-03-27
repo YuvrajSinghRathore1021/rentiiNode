@@ -179,7 +179,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 
-router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) => {
+// router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) => {
+router.post('/add-property', async (req, res) => {
     const connection = await dbn.getConnection();
     try {
         await connection.beginTransaction();
@@ -229,7 +230,6 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
         // Parse `data` JSON
         const data = JSON.parse(req.body.data);
 
-        console.log("add data=", data);
         let status = 0;
         let statusStr = req.body.status;
 
@@ -308,14 +308,28 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
         }
 
         // 4. Insert images
-        if (req.files && req.files.length) {
-            for (let i = 0; i < req.files.length; i++) {
-                const imageUrl = `/uploads/images/${req.files[i].filename}`; // relative path
-                await connection.query(`INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
-                    [propertyId, imageUrl, i === 0 ? 1 : 0]);
+        let placesPhotos = req.body.placesPhotos;
+
+        if (typeof placesPhotos === "string") {
+            placesPhotos = JSON.parse(placesPhotos);
+        }
+        if (placesPhotos && Array.isArray(placesPhotos)) {
+            for (let i = 0; i < placesPhotos.length; i++) {
+
+                const imageUrl = placesPhotos[i]?.url;
+
+                if (!imageUrl) {
+                    console.log("Invalid image at index", i);
+                    continue;
+                }
+
+
+                await connection.query(
+                    `INSERT INTO property_images (property_id, image_url, is_primary) VALUES (?,?,?)`,
+                    [propertyId, imageUrl, i === 0 ? 1 : 0]
+                );
             }
         }
-
         // 5. Insert amenities
         if (data.placehastooffer && Object.keys(data.placehastooffer).length > 0) {
             const amenities = Object.keys(data.placehastooffer).filter(k => data.placehastooffer[k] == '1');
@@ -388,7 +402,7 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
 
 
 router.post('/edit-property', upload.array("placesPhotos", 10), async (req, res) => {
-    console.log("edit-property=", 1)
+
     const connection = await dbn.getConnection();
 
     try {
@@ -403,8 +417,6 @@ router.post('/edit-property', upload.array("placesPhotos", 10), async (req, res)
         }
 
         const data = JSON.parse(req.body.data);
-        console.log("edit-property=", data)
-        console.log(propertyId, "=edit=", data)
         let status = 0;
         if (req.body.status == "Approve") status = 1;
 
@@ -588,7 +600,6 @@ router.post('/add-propertyWeb', async (req, res) => {
         // Parse `data` JSON
         const data = JSON.parse(req.body.data);
 
-        console.log("add data=", data);
         let status = 0;
         let statusStr = req.body.status;
 
@@ -764,7 +775,6 @@ router.post("/edit-propertyWeb",
 
             const data = JSON.parse(req.body.data);
             const property_Id = req.body.property_Id;
-            console.log(property_Id, "=edit =", data)
             if (!property_Id) {
                 return res
                     .status(400)
@@ -984,7 +994,6 @@ router.post("/edit-propertyWeb",
 //     }
 
 //     const { type, propertyId, data } = req.body;
-//     console.log("data =", data)
 
 //     if (!type || !propertyId) {
 //         return res.status(400).json({ status: false, message: "Property ID and type are required" });
@@ -1524,9 +1533,7 @@ router.get('/view-property-onboarding', async (req, res) => {
 
         for (const row of amenityRows) {
             const { value, data_key, name } = row;
-            // console.log(data_key, value);
             if (data_key == "placehastooffer") {
-                // console.log();
                 placehastooffer[value] = "1";
 
                 placehastoofferWithkey.push({ key: value, value: "1", name: name });
@@ -1890,6 +1897,7 @@ router.get('/view-property', async (req, res) => {
 
 router.get('/viewPropertyList', async (req, res) => {
     const hostId = req.user?.host_id;
+
     if (!hostId) {
         return res.status(400).json({ status: false, message: "Host not found, please re-login" });
     }
@@ -1932,7 +1940,6 @@ ORDER BY p.property_id DESC;`
                 groupedData.inprocess.push(p);
             }
         });
-        console.log("groupedData", groupedData)
         return res.status(200).json({
             status: true,
             message: "Property fetched successfully",
@@ -1971,7 +1978,6 @@ router.post('/edit-property-listing', async (req, res) => {
 
         let updateQuery = "";
         let updateValue = [];
-        console.log(data)
         // Handle different section types based on your data structure
         switch (type) {
             case "title":
@@ -2419,7 +2425,6 @@ router.post("/deletePropertyImage", async (req, res) => {
             });
         }
         const deleted = await deletePropertyImage(propertyId, imageUrl);
-        console.log(deleted);
         if (!deleted) {
             return res.status(404).json({
                 status: false,

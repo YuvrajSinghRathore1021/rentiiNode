@@ -270,7 +270,6 @@ router.post('/add-property', upload.array("placesPhotos", 10), async (req, res) 
         // Parse `data` JSON
         const data = JSON.parse(req.body.data);
 
-        console.log("add data=", data);
         let status = 0;
         let statusStr = req.body.status;
 
@@ -443,7 +442,6 @@ router.post('/edit-property', upload.array("placesPhotos", 10), async (req, res)
         }
 
         const data = JSON.parse(req.body.data);
-console.log(propertyId,"=edit=",data)
         let status = 0;
         if (req.body.status == "Approve") status = 1;
 
@@ -629,7 +627,6 @@ router.post('/add-propertyWeb', async (req, res) => {
         // Parse `data` JSON
         const data = JSON.parse(req.body.data);
 
-        console.log("add data=", data);
         let status = 0;
         let statusStr = req.body.status;
 
@@ -805,7 +802,6 @@ router.post("/edit-propertyWeb",
 
             const data = JSON.parse(req.body.data);
             const property_Id = req.body.property_Id;
-            console.log(property_Id, "=edit =", data)
             if (!property_Id) {
                 return res
                     .status(400)
@@ -1705,9 +1701,7 @@ router.get('/view-property', async (req, res) => {
 
         for (const row of amenityRows) {
             const { value, data_key, name } = row;
-            // console.log(data_key, value);
             if (data_key == "placehastooffer") {
-                // console.log();
                 placehastooffer[value] = "1";
 
                 placehastoofferWithkey.push({ key: value, value: "1", name: name });
@@ -1903,7 +1897,6 @@ ORDER BY p.property_id DESC;`
                 groupedData.inprocess.push(p);
             }
         });
-        console.log("groupedData", groupedData)
         return res.status(200).json({
             status: true,
             message: "Property fetched successfully",

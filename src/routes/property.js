@@ -184,7 +184,6 @@ router.post("/toggleStatus", async (req, res) => {
 router.post("/propertyImagesView", async (req, res) => {
     const userId = req.user.user_id;
     const { property_id } = req.body;
-    console.log("property_id", property_id);
     try {
         const query = "SELECT image_id, property_id, image_url, is_primary, caption, uploaded_at FROM property_images WHERE property_id = ?";
         const [images] = await db.promise().query(query, [property_id]);

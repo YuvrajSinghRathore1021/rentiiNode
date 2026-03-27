@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 
 function uploadFile(folderName) {
-    console.log(folderName)
 
     // Create folder if not exists
     const uploadPath = path.join(__dirname, "../../uploads", folderName);
