@@ -73,31 +73,114 @@ router.post('/login', async (req, res) => {
 });
 
 
-// check email and password
-router.post('/otpCheck', (req, res) => {
+// // check email and password
+// router.post('/otpCheck', (req, res) => {
+//   const { email, otp } = req.body;
+//   db.query('SELECT * FROM users WHERE email = ?', [email], (err,
+//     results) => {
+//     if (err) {
+//       console.error('Check error:', err);
+//       return res.status(500).json({ status: false, message: 'Server error' });
+//     }
+//     if (!results || results.length === 0) {
+//       return res.status(200).json({ status: false, message: 'Invalid email' });
+//     }
+//     const user = results[0];
+//     if (!user.otp || !user.otp_expiry) {
+//       return res.status(200).json({ status: false, message: 'OTP not sent or expired' });
+//     }
+//     // Check if OTP matches and is not expired
+//     const currentTime = new Date();
+//     if (email != "testingusername@gmail.com") {
+
+
+//       if (user.otp != otp || new Date(user.otp_expiry) < currentTime) {
+//         return res.status(200).json({ status: false, message: 'Invalid or expired OTP' });
+//       }
+//     }
+//     // Generate JWT token
+//     const token = jwt.sign(
+//       {
+//         user_id: user.user_id,
+//         name: user.name,
+//         email: user.email,
+//         dob: user.dob,
+//         phone_number: user.phone_number,
+//         about: user.about,
+//         host_id: user.host_id,
+//         is_host: user.is_host,
+//         is_verified_email: user.is_verified_email,
+//         status: user.status
+//       },
+//       process.env.JWT_SECRET,
+//       { expiresIn: '4300h' } // 500 days
+//     );
+//     // Clear OTP after successful login
+
+//     res.status(200).json({
+//       status: true,
+//       message: 'Login successful',
+//       token,
+//     });
+
+//   });
+// });
+
+router.post('/otpCheck', async (req, res) => {
   const { email, otp } = req.body;
-  db.query('SELECT * FROM users WHERE email = ?', [email], (err,
-    results) => {
-    if (err) {
-      console.error('Check error:', err);
-      return res.status(500).json({ status: false, message: 'Server error' });
-    }
+
+  try {
+    const [results] = await db.promise().query(
+      'SELECT * FROM users WHERE email = ?',
+      [email]
+    );
+
     if (!results || results.length === 0) {
       return res.status(200).json({ status: false, message: 'Invalid email' });
     }
+
     const user = results[0];
+
     if (!user.otp || !user.otp_expiry) {
       return res.status(200).json({ status: false, message: 'OTP not sent or expired' });
     }
-    // Check if OTP matches and is not expired
+
     const currentTime = new Date();
-    if (email != "testingusername@gmail.com") {
 
-
+    if (email !== "testingusername@gmail.com") {
       if (user.otp != otp || new Date(user.otp_expiry) < currentTime) {
         return res.status(200).json({ status: false, message: 'Invalid or expired OTP' });
       }
     }
+
+    const userId = user.user_id;
+    let type = "user";
+
+    // check broker
+    const [broker] = await db.promise().query(
+      `SELECT id FROM brokers WHERE user_id = ? LIMIT 1`,
+      [userId]
+    );
+
+    // check host
+    const [host] = await db.promise().query(
+      `SELECT host_id FROM host_profiles WHERE user_id = ? LIMIT 1`,
+      [userId]
+    );
+
+    if (broker.length > 0 && host.length > 0) {
+      type = "host-broker";
+    } else if (broker.length > 0) {
+      type = "broker";
+    } else if (host.length > 0) {
+      type = "host";
+    }
+
+    // super admin check
+    if (userId == 3) {
+      type = "super-admin";
+    }
+
     // Generate JWT token
     const token = jwt.sign(
       {
@@ -110,23 +193,31 @@ router.post('/otpCheck', (req, res) => {
         host_id: user.host_id,
         is_host: user.is_host,
         is_verified_email: user.is_verified_email,
-        status: user.status
+        status: user.status,
+        type: type,
       },
       process.env.JWT_SECRET,
-      { expiresIn: '4300h' } // 500 days
+      { expiresIn: '4300h' }
     );
-    // Clear OTP after successful login
+
+    // Clear OTP after login (optional but recommended)
+    await db.promise().query(
+      `UPDATE users SET otp = NULL, otp_expiry = NULL WHERE user_id = ?`,
+      [userId]
+    );
 
     res.status(200).json({
       status: true,
       message: 'Login successful',
+      type,
       token,
     });
 
-  });
+  } catch (error) {
+    console.error("OTP Check Error:", error);
+    res.status(500).json({ status: false, message: "Internal server error" });
+  }
 });
-
-
 
 router.post('/google/login', async (req, res) => {
   const { email, type = "user", photo, name, id: google_id } = req.body;
